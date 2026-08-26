@@ -12,7 +12,25 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+def _project_root() -> Path:
+    """Ermittelt das Projektverzeichnis robust.
+
+    Bei einer Installation aus dem Quellbaum liegt es zwei Ebenen ueber diesem
+    Modul. Wird das Paket dagegen nach site-packages installiert (etwa in einem
+    Container), zeigt derselbe Pfad ins Python-Verzeichnis - dann ist das
+    Arbeitsverzeichnis die richtige Wahl. ``AKTIENMONITOR_ROOT`` sticht beides.
+    """
+    override = (os.getenv("AKTIENMONITOR_ROOT") or "").strip()
+    if override:
+        return Path(override)
+    candidate = Path(__file__).resolve().parents[2]
+    if (candidate / "pyproject.toml").exists():
+        return candidate
+    return Path.cwd()
+
+
+PROJECT_ROOT = _project_root()
 
 # Datentypen, fuer die getrennte Cache-Lebensdauern gelten.
 DATA_KIND_QUOTE = "quote"

@@ -1,0 +1,20 @@
+# Serverkonfiguration. Gilt lokal wie im Container; der Port wird beim
+# gehosteten Betrieb ueber die Kommandozeile ueberschrieben.
+
+[server]
+headless = true
+# Schutz gegen Cross-Site-Request-Forgery bleibt eingeschaltet.
+enableXsrfProtection = true
+enableCORS = true
+# Hochgeladene CSV-Dateien sind klein - 5 MB reichen reichlich.
+maxUploadSize = 5
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+
+[client]
+# Fehler gehoeren in die Logs, nicht in die Oberflaeche eines gehosteten Dienstes.
+showErrorDetails = "none"

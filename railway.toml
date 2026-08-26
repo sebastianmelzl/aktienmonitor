@@ -1,0 +1,22 @@
+# Railway-Konfiguration.
+#
+# WICHTIG - vor dem ersten Deploy in Railway einrichten:
+#   1. Volume anlegen und unter /data einhaengen. Ohne Volume sind Watchlist
+#      und Cache nach jedem Deploy weg, und der Cache ist die zentrale
+#      Verteidigung gegen die Rate-Limits der Datenanbieter.
+#   2. Variable AKTIENMONITOR_APP_PASSWORD setzen. Ohne sie verweigert die
+#      App den Start, damit die hinterlegten API-Schluessel nicht offen im
+#      Netz stehen.
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/_stcore/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+# Eine Instanz: die SQLite-Datenbank vertraegt keine zwei Schreiber auf
+# getrennten Dateisystemen.
+numReplicas = 1

@@ -73,7 +73,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 321 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 335 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -122,8 +122,11 @@ src/aktienmonitor/
     sector.py               Perzentilrang innerhalb der Branche
     engine.py               Teilscores, Gesamtscore, Beitrags-Aufschluesselung
   storage/                  SQLite: Schema, Cache, Watchlist, Einstellungen
-  ui/                       Formatierung, Charts, Tabellenlogik, Score-Anzeige
+  ui/                       Formatierung, Charts, Tabellenlogik, Score-Anzeige, Zugang
 tests/                      Unit-Tests mit fixen Testdaten
+Dockerfile                  Container-Abbild für den gehosteten Betrieb
+railway.toml                Railway-Konfiguration (Build, Healthcheck, Replikate)
+.streamlit/config.toml      Serverkonfiguration
 ```
 
 Die Schichten sind strikt getrennt: `metrics/` und `scoring/` importieren weder
@@ -382,6 +385,95 @@ Zwei bis fünf Titel nebeneinander, mit Teilscores, Datenabdeckung je Titel und
 den Kennzahlen als Matrix. Die Abdeckungsspalte ist hier besonders nützlich: ein
 hoher Score aus wenigen Kennzahlen ist weniger belastbar als derselbe Score aus
 vielen.
+
+## Betrieb auf einem Server (Railway)
+
+Die App ist als **lokale** Anwendung entworfen. Sie lässt sich hosten, aber vier
+Dinge ändern sich dadurch grundlegend – bitte vor dem Deploy lesen.
+
+### Was sich beim Hosten ändert
+
+**1. Zugangsschutz ist Pflicht.** Wer die URL kennt, kann Datenabrufe auslösen –
+und damit die hinterlegten API-Schlüssel verbrauchen. Beim Sprachmodell
+entstehen dabei echte Kosten auf Ihrer Rechnung. Die App **verweigert deshalb
+den Start**, wenn sie einen Hoster erkennt (Variable `PORT` gesetzt) und
+`AKTIENMONITOR_APP_PASSWORD` leer ist. Lokal bleibt sie ohne Passwort nutzbar.
+
+Zur Einordnung: Das ist ein einzelnes gemeinsames Passwort, keine
+Benutzerverwaltung. Es schützt vor zufälligem Zugriff und ungewollten Kosten,
+nicht vor einem entschlossenen Angreifer.
+
+**2. Ohne Volume sind alle Daten nach jedem Deploy weg.** Der Container hat kein
+dauerhaftes Dateisystem. Watchlist, Einstellungen und – besonders schmerzhaft –
+der Cache würden bei jedem Neustart verschwinden. Der Cache ist die zentrale
+Verteidigung gegen die Rate-Limits der Datenanbieter; ohne ihn läuft jeder
+Seitenaufruf in neue Abrufe. **Ein Volume unter `/data` ist deshalb keine
+Option, sondern Voraussetzung.**
+
+**3. yfinance aus einem Rechenzentrum ist unzuverlässig.** Yahoo drosselt und
+sperrt Anfragen von Cloud-IP-Bereichen deutlich aggressiver als von privaten
+Anschlüssen. Da yfinance in diesem Projekt die Hauptdatenquelle ist, kann das
+die gehostete App weitgehend unbrauchbar machen – mit vielen `n/a` statt Zahlen.
+Das lässt sich vorab nicht zuverlässig sagen; es hängt vom Anbieter, der Region
+und dem Zeitpunkt ab. Falls es auftritt, ist der lokale Betrieb die verlässliche
+Variante.
+
+**4. Eine Instanz, nicht mehr.** SQLite verträgt keine zwei Schreiber. In
+`railway.toml` steht deshalb `numReplicas = 1`; bitte nicht hochsetzen.
+
+### Schritte
+
+```bash
+# 1. Railway-CLI installieren (eine der beiden Varianten)
+npm install -g @railway/cli
+brew install railway
+
+# 2. Anmelden und Projekt anlegen
+railway login
+railway init
+
+# 3. Volume anlegen und unter /data einhängen
+#    Am verlässlichsten über das Railway-Dashboard:
+#    Service -> Settings -> Volumes -> Mount path: /data
+#    (Die CLI kann das je nach Version auch, die Befehlsnamen wechseln dort
+#     häufiger – im Zweifel das Dashboard nehmen.)
+
+# 4. Variablen setzen
+railway variables --set "AKTIENMONITOR_APP_PASSWORD=<eigenes-passwort>"
+railway variables --set "FINNHUB_API_KEY=<optional>"
+railway variables --set "ANTHROPIC_API_KEY=<optional>"
+
+# 5. Deployen
+railway up
+
+# 6. Öffentliche Adresse erzeugen
+railway domain
+```
+
+`AKTIENMONITOR_DB_PATH=/data/aktienmonitor.db` und `AKTIENMONITOR_LOG_DIR=/data/logs`
+sind im `Dockerfile` bereits gesetzt und müssen nur angepasst werden, wenn Sie
+das Volume woanders einhängen.
+
+Railway baut über das `Dockerfile` (`railway.toml` legt das fest) und prüft die
+Bereitschaft über `/_stcore/health`. Der Container läuft als unprivilegierter
+Benutzer.
+
+### Prüfen, dass der Schutz greift
+
+Nach dem ersten Deploy sollte der Aufruf der URL eine Passwortabfrage zeigen.
+Erscheint stattdessen die Meldung „Start verweigert", fehlt
+`AKTIENMONITOR_APP_PASSWORD` – dann ist nichts offen, die App liefert nur keine
+Inhalte aus.
+
+### Lokal im Container testen
+
+```bash
+docker build -t aktienmonitor .
+docker run --rm -p 8501:8501 \
+  -e AKTIENMONITOR_APP_PASSWORD=test \
+  -v "$(pwd)/data:/data" \
+  aktienmonitor
+```
 
 ## Bekannte Grenzen der Datenquellen
 

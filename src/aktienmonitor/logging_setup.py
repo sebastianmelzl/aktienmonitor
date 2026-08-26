@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -19,8 +20,7 @@ def setup_logging(level: str = "INFO", log_dir: Path | None = None) -> None:
     if _configured:
         return
 
-    target_dir = log_dir or (PROJECT_ROOT / "logs")
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = log_dir or Path(os.getenv("AKTIENMONITOR_LOG_DIR") or (PROJECT_ROOT / "logs"))
 
     root = logging.getLogger("aktienmonitor")
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
@@ -32,11 +32,18 @@ def setup_logging(level: str = "INFO", log_dir: Path | None = None) -> None:
     console.setFormatter(formatter)
     root.addHandler(console)
 
-    file_handler = RotatingFileHandler(
-        target_dir / "aktienmonitor.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"
-    )
-    file_handler.setFormatter(formatter)
-    root.addHandler(file_handler)
+    # Datei-Logging ist eine Annehmlichkeit, keine Voraussetzung: auf einem
+    # schreibgeschuetzten Dateisystem (etwa in einem Container) laeuft die App
+    # weiter und protokolliert nur auf der Konsole.
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            target_dir / "aktienmonitor.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
+    except OSError as exc:
+        root.warning("Datei-Logging nicht moeglich (%s) - es wird nur auf die Konsole geloggt", exc)
 
     # yfinance ist im Normalbetrieb sehr gespraechig.
     logging.getLogger("yfinance").setLevel(logging.WARNING)

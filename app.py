@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import streamlit as st
 
+from aktienmonitor.ui.auth import logout_button, require_access
+
 st.set_page_config(page_title="Aktienmonitor", page_icon="📊", layout="wide")
+
+# Vor jedem Seitenaufbau: im gehosteten Betrieb ist ein Passwort Pflicht.
+require_access()
 
 navigation = st.navigation(
     [
@@ -22,4 +27,5 @@ navigation = st.navigation(
         st.Page("views/einstellungen.py", title="Einstellungen", icon="⚙️"),
     ]
 )
+logout_button()
 navigation.run()
