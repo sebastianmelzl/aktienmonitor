@@ -34,8 +34,8 @@ SCORE_BANDS = (
 def score_band(score: float | None) -> str:
     if score is None:
         return "kein Score"
-    for schwelle, text in SCORE_BANDS:
-        if score >= schwelle:
+    for threshold, text in SCORE_BANDS:
+        if score >= threshold:
             return text
     return "sehr niedriger Score"
 
@@ -52,9 +52,9 @@ def weight_sliders(store, *, container=None, key_prefix: str = "") -> dict[str, 
         current.update({k: float(v) for k, v in stored.items() if k in DEFAULT_WEIGHTS})
 
     werte: dict[str, float] = {}
-    for kategorie, beschriftung in CATEGORY_LABELS.items():
+    for kategorie, label in CATEGORY_LABELS.items():
         werte[kategorie] = target.slider(
-            beschriftung,
+            label,
             min_value=0.0,
             max_value=1.0,
             value=float(current.get(kategorie, 0.0)),
@@ -62,14 +62,14 @@ def weight_sliders(store, *, container=None, key_prefix: str = "") -> dict[str, 
             key=f"{key_prefix}weight_{kategorie}",
         )
 
-    summe = sum(werte.values())
-    if summe <= 0:
+    total = sum(werte.values())
+    if total <= 0:
         target.warning(
             "Alle Gewichte stehen auf null - damit laesst sich kein Gesamtscore bilden."
         )
     else:
         target.caption(
-            f"Summe {german_number(summe, 2)} – die Gewichte werden intern auf 100 % "
+            f"Summe {german_number(total, 2)} – die Gewichte werden intern auf 100 % "
             "normiert, die Verhaeltnisse zaehlen."
         )
 
@@ -80,23 +80,23 @@ def weight_sliders(store, *, container=None, key_prefix: str = "") -> dict[str, 
 
 def render_total_score(result: TotalScore) -> None:
     """Kopfzeile mit Gesamtscore und den vier Teilscores."""
-    spalten = st.columns(5)
-    spalten[0].metric(
+    columns = st.columns(5)
+    columns[0].metric(
         "Gesamtscore",
         f"{result.total:.0f}" if result.is_available else NOT_AVAILABLE,
         help="Gewichteter Mittelwert der verfuegbaren Teilscores, Skala 0-100.",
     )
     if result.is_available:
-        spalten[0].caption(score_band(result.total))
+        columns[0].caption(score_band(result.total))
 
-    for spalte, (name, teilscore) in zip(spalten[1:], result.categories.items(), strict=False):
+    for column, (name, category_score) in zip(columns[1:], result.categories.items(), strict=False):
         anteil = result.effective_weights.get(name, 0.0)
-        spalte.metric(
-            teilscore.label,
-            f"{teilscore.score:.0f}" if teilscore.is_available else NOT_AVAILABLE,
-            help=teilscore.coverage_text,
+        column.metric(
+            category_score.label,
+            f"{category_score.score:.0f}" if category_score.is_available else NOT_AVAILABLE,
+            help=category_score.coverage_text,
         )
-        spalte.caption(
+        column.caption(
             f"Gewicht {anteil * 100:.0f} %" if anteil > 0 else "geht nicht in den Gesamtscore ein"
         )
 
@@ -109,43 +109,43 @@ def render_total_score(result: TotalScore) -> None:
         )
 
 
-def render_breakdown(teilscore: CategoryScore, currency: str | None = None) -> None:
+def render_breakdown(category_score: CategoryScore, currency: str | None = None) -> None:
     """Aufklappbare Herleitung eines Teilscores."""
-    with st.expander(teilscore.coverage_text, expanded=False):
-        if teilscore.is_available:
-            st.progress(teilscore.weight_coverage)
+    with st.expander(category_score.coverage_text, expanded=False):
+        if category_score.is_available:
+            st.progress(category_score.weight_coverage)
 
-        if teilscore.included:
-            zeilen = []
-            for beitrag in teilscore.included:
-                zeilen.append(
+        if category_score.included:
+            rows = []
+            for contribution in category_score.included:
+                rows.append(
                     {
-                        "Kennzahl": beitrag.metric.label,
-                        "Wert": format_metric(beitrag.metric, currency),
-                        "Bewertung": beitrag.mode_label,
-                        "Punkte": round(beitrag.points, 1),
-                        "Gewicht": beitrag.rule.weight,
-                        "Beitrag": round(beitrag.weighted_points, 1),
-                        "Quelle": beitrag.metric.source_label,
+                        "Kennzahl": contribution.metric.label,
+                        "Wert": format_metric(contribution.metric, currency),
+                        "Bewertung": contribution.mode_label,
+                        "Punkte": round(contribution.points, 1),
+                        "Gewicht": contribution.rule.weight,
+                        "Beitrag": round(contribution.weighted_points, 1),
+                        "Quelle": contribution.metric.source_label,
                         "Vergleichsgruppe": (
-                            f"{beitrag.comparison.peer_count} Titel, Median "
-                            f"{german_number(beitrag.comparison.median, 2)}"
-                            if beitrag.comparison
+                            f"{contribution.comparison.peer_count} Titel, Median "
+                            f"{german_number(contribution.comparison.median, 2)}"
+                            if contribution.comparison
                             else ""
                         ),
                     }
                 )
-            tabelle = pd.DataFrame(zeilen)
-            st.dataframe(tabelle, width="stretch", hide_index=True)
+            table = pd.DataFrame(rows)
+            st.dataframe(table, width="stretch", hide_index=True)
             st.caption(
-                f"Teilscore = Summe der Beitraege ({tabelle['Beitrag'].sum():.1f}) geteilt "
-                f"durch die Summe der genutzten Gewichte ({tabelle['Gewicht'].sum():.1f})"
-                + (f" = {teilscore.score:.1f}" if teilscore.is_available else "")
+                f"Teilscore = Summe der Beitraege ({table['Beitrag'].sum():.1f}) geteilt "
+                f"durch die Summe der genutzten Gewichte ({table['Gewicht'].sum():.1f})"
+                + (f" = {category_score.score:.1f}" if category_score.is_available else "")
             )
         else:
             st.info("Keine dieser Kennzahlen ist verfuegbar - der Teilscore bleibt n/a.")
 
-        if teilscore.excluded:
+        if category_score.excluded:
             st.markdown("**Nicht eingegangen**")
             st.dataframe(
                 pd.DataFrame(
@@ -155,7 +155,7 @@ def render_breakdown(teilscore: CategoryScore, currency: str | None = None) -> N
                             "Grund": b.excluded_reason or "",
                             "Hinweis der Datenquelle": b.metric.missing_reason or "",
                         }
-                        for b in teilscore.excluded
+                        for b in category_score.excluded
                     ]
                 ),
                 width="stretch",
@@ -163,8 +163,11 @@ def render_breakdown(teilscore: CategoryScore, currency: str | None = None) -> N
             )
 
         st.markdown("**Begruendung der Regeln**")
-        for beitrag in teilscore.contributions:
-            st.caption(f"**{beitrag.metric.label}** ({beitrag.mode_label}): {beitrag.rule.rationale}")
+        for contribution in category_score.contributions:
+            st.caption(
+                f"**{contribution.metric.label}** ({contribution.mode_label}): "
+                f"{contribution.rule.rationale}"
+            )
 
 
 def render_sector_note(statistics: SectorStatistics | None, sector: str | None) -> None:
@@ -176,13 +179,13 @@ def render_sector_note(statistics: SectorStatistics | None, sector: str | None) 
         )
         return
 
-    anzahl = max(
+    count = max(
         (statistics.peer_count(sector, key) for key in ("pe_trailing", "ev_ebitda", "roe")),
         default=0,
     )
     branche = sector or "ohne Angabe"
     st.caption(
-        f"Sektorvergleich gegen **{anzahl}** Titel der Branche '{branche}' aus dem eigenen "
+        f"Sektorvergleich gegen **{count}** Titel der Branche '{branche}' aus dem eigenen "
         f"Universum (Mindestgruppe {statistics.min_peers} Titel). Der Vergleich ist damit "
         "relativ zur eigenen Watchlist, nicht zum Gesamtmarkt."
     )

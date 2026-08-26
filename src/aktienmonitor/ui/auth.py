@@ -48,20 +48,20 @@ def require_access() -> None:
     Ohne Zugang wird der Seitenaufbau mit ``st.stop()`` beendet - es gibt keinen
     Pfad, auf dem Inhalte ohne Freigabe gerendert werden.
     """
-    passwort = configured_password()
+    password = configured_password()
 
-    if passwort is None:
+    if password is None:
         if is_hosted():
-            _verweigere_start()
+            _refuse_start()
         return  # lokaler Betrieb ohne Passwort
 
     if st.session_state.get(SESSION_KEY) is True:
         return
 
-    _zeige_anmeldung(passwort)
+    _render_login(password)
 
 
-def _verweigere_start() -> None:
+def _refuse_start() -> None:
     """Bricht ab, wenn gehostet und kein Passwort gesetzt ist."""
     st.error(
         "**Start verweigert: kein Zugangspasswort gesetzt.**\n\n"
@@ -75,12 +75,12 @@ def _verweigere_start() -> None:
     st.stop()
 
 
-def _zeige_anmeldung(erwartet: str) -> None:
+def _render_login(expected: str) -> None:
     st.title("Aktienmonitor")
     st.caption("Bitte Zugangspasswort eingeben.")
 
-    versuche = st.session_state.get(ATTEMPT_KEY, 0)
-    if versuche >= MAX_ATTEMPTS:
+    attempts = st.session_state.get(ATTEMPT_KEY, 0)
+    if attempts >= MAX_ATTEMPTS:
         st.error(
             f"{MAX_ATTEMPTS} Fehlversuche. Bitte die Seite neu laden, um es erneut "
             "zu versuchen.",
@@ -89,20 +89,20 @@ def _zeige_anmeldung(erwartet: str) -> None:
         st.stop()
 
     with st.form("anmeldung"):
-        eingabe = st.text_input("Passwort", type="password")
-        abgeschickt = st.form_submit_button("Anmelden")
+        entered = st.text_input("Passwort", type="password")
+        submitted = st.form_submit_button("Anmelden")
 
-    if abgeschickt:
+    if submitted:
         # Konstantzeitiger Vergleich, damit die Laufzeit nichts ueber das
         # Passwort verraet.
-        if hmac.compare_digest(eingabe, erwartet):
+        if hmac.compare_digest(entered, expected):
             st.session_state[SESSION_KEY] = True
             st.session_state[ATTEMPT_KEY] = 0
             st.rerun()
 
-        versuche += 1
-        st.session_state[ATTEMPT_KEY] = versuche
-        if versuche >= MAX_ATTEMPTS:
+        attempts += 1
+        st.session_state[ATTEMPT_KEY] = attempts
+        if attempts >= MAX_ATTEMPTS:
             # Sperre sofort melden, nicht erst beim naechsten Seitenaufbau.
             st.error(
                 f"{MAX_ATTEMPTS} Fehlversuche. Bitte die Seite neu laden, um es erneut "
@@ -110,7 +110,7 @@ def _zeige_anmeldung(erwartet: str) -> None:
                 icon="🔒",
             )
         else:
-            st.error(f"Falsches Passwort ({versuche} von {MAX_ATTEMPTS} Versuchen).")
+            st.error(f"Falsches Passwort ({attempts} von {MAX_ATTEMPTS} Versuchen).")
 
     st.stop()
 
@@ -119,7 +119,7 @@ def logout_button(container=None) -> None:
     """Abmelden - nur sinnvoll, wenn ein Passwort gesetzt ist."""
     if configured_password() is None:
         return
-    ziel = container or st.sidebar
-    if ziel.button("Abmelden", width="stretch"):
+    target_group = container or st.sidebar
+    if target_group.button("Abmelden", width="stretch"):
         st.session_state[SESSION_KEY] = False
         st.rerun()

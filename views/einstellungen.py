@@ -50,18 +50,18 @@ with tab_gewichte:
         "Ein Teilscore ohne Daten geht nicht mit null ein, sondern sein Gewicht wird auf "
         "die uebrigen verteilt."
     )
-    spalte_regler, spalte_info = st.columns([2, 1])
-    with spalte_regler:
-        gewichte = weight_sliders(store, key_prefix="settings_")
-    with spalte_info:
-        summe = sum(gewichte.values())
-        if summe > 0:
+    col_sliders, col_info = st.columns([2, 1])
+    with col_sliders:
+        weights = weight_sliders(store, key_prefix="settings_")
+    with col_info:
+        total = sum(weights.values())
+        if total > 0:
             st.write("**Effektive Verteilung**")
             st.dataframe(
                 pd.DataFrame(
                     [
-                        {"Teilscore": CATEGORY_LABELS[k], "Anteil": f"{v / summe * 100:.0f} %"}
-                        for k, v in gewichte.items()
+                        {"Teilscore": CATEGORY_LABELS[k], "Anteil": f"{v / total * 100:.0f} %"}
+                        for k, v in weights.items()
                     ]
                 ),
                 width="stretch",
@@ -88,32 +88,32 @@ with tab_sektor:
         "**Der Vergleich ist damit relativ zur Watchlist, nicht zum Gesamtmarkt.**"
     )
 
-    aktuell = int(store.get(MIN_PEERS_SETTING_KEY, DEFAULT_MIN_PEERS))
-    schwelle = st.slider(
+    recent = int(store.get(MIN_PEERS_SETTING_KEY, DEFAULT_MIN_PEERS))
+    threshold = st.slider(
         "Mindestgroesse der Vergleichsgruppe",
         min_value=2,
         max_value=15,
-        value=aktuell,
+        value=recent,
         help="Unterhalb dieser Zahl wird eine Kennzahl gar nicht bewertet, statt einen "
              "Rang aus wenigen Titeln zu behaupten. Das senkt die Datenabdeckung, "
              "verhindert aber Scheingenauigkeit.",
     )
-    if schwelle != aktuell:
-        store.set(MIN_PEERS_SETTING_KEY, schwelle)
+    if threshold != recent:
+        store.set(MIN_PEERS_SETTING_KEY, threshold)
         clear_sector_cache()
         st.rerun()
 
     from aktienmonitor.ui.common import get_sector_statistics
 
-    statistik = get_sector_statistics(get_watchlist().tickers(), min_peers=schwelle)
-    if statistik is None:
+    statistics = get_sector_statistics(get_watchlist().tickers(), min_peers=threshold)
+    if statistics is None:
         st.info(
             "Noch keine zwischengespeicherten Daten. Der Sektorvergleich steht zur "
             "Verfuegung, sobald mehrere Titel in der Detailansicht geladen wurden."
         )
     else:
         st.dataframe(
-            pd.DataFrame(statistik.coverage_report()), width="stretch", hide_index=True
+            pd.DataFrame(statistics.coverage_report()), width="stretch", hide_index=True
         )
         if st.button("Sektordaten neu aufbauen"):
             clear_sector_cache()
@@ -126,7 +126,7 @@ with tab_cache:
         "Hebel gegen die Rate-Limits der Anbieter. Die Werte stammen aus der `.env` und "
         "werden hier nur angezeigt; zum Aendern die `.env` anpassen und die App neu starten."
     )
-    beschriftungen = {
+    labels = {
         "quote": "Realtime-Kurs",
         "price_history": "Kurshistorie",
         "fundamentals": "Bilanz, GuV, Cashflow",
@@ -138,7 +138,7 @@ with tab_cache:
         pd.DataFrame(
             [
                 {
-                    "Datenart": beschriftungen.get(art, art),
+                    "Datenart": labels.get(art, art),
                     "Aktuell": _dauer(config.ttl_seconds[art]),
                     "Voreinstellung": _dauer(DEFAULT_TTL_SECONDS[art]),
                     "Variable": f"CACHE_TTL_{art.upper()}",
@@ -151,10 +151,10 @@ with tab_cache:
     )
 
     st.subheader("Cache-Inhalt")
-    statistik_cache = service.cache.stats()
-    if statistik_cache:
+    cache_stats = service.cache.stats()
+    if cache_stats:
         st.dataframe(
-            pd.DataFrame(statistik_cache).rename(
+            pd.DataFrame(cache_stats).rename(
                 columns={
                     "data_kind": "Datenart",
                     "source": "Quelle",
@@ -168,15 +168,15 @@ with tab_cache:
     else:
         st.info("Der Cache ist leer.")
 
-    spalte_a, spalte_b = st.columns(2)
-    if spalte_a.button("Abgelaufene Eintraege entfernen"):
-        anzahl = service.cache.purge_expired()
+    col_a, col_b = st.columns(2)
+    if col_a.button("Abgelaufene Eintraege entfernen"):
+        count = service.cache.purge_expired()
         clear_sector_cache()
-        st.success(f"{anzahl} abgelaufene Eintraege entfernt.")
-    if spalte_b.button("Cache vollstaendig leeren"):
-        anzahl = service.cache.clear()
+        st.success(f"{count} abgelaufene Eintraege entfernt.")
+    if col_b.button("Cache vollstaendig leeren"):
+        count = service.cache.clear()
         clear_sector_cache()
-        st.success(f"{anzahl} Eintraege entfernt.")
+        st.success(f"{count} Eintraege entfernt.")
 
 with tab_quellen:
     st.subheader("Aktive Datenquellen")

@@ -16,68 +16,68 @@ tab_titel, tab_import, tab_listen = st.tabs(["Titel", "CSV-Import", "Listen"])
 
 with tab_titel:
     with st.form("titel_hinzufuegen", clear_on_submit=True):
-        spalte_ticker, spalte_gruppe, spalte_knopf = st.columns([2, 2, 1])
-        with spalte_ticker:
-            eingabe = st.text_input(
+        col_ticker, col_group, col_button = st.columns([2, 2, 1])
+        with col_ticker:
+            entered = st.text_input(
                 "Ticker", placeholder="z.B. AAPL, SAP.DE, 7203.T",
                 help="Symbol wie bei Yahoo Finance. Deutsche Titel enden auf .DE",
             )
-        with spalte_gruppe:
-            gruppen = watchlist.groups()
-            gruppe = st.selectbox(
-                "Liste (optional)", options=["– keine –", *gruppen, "+ neue Liste"], index=0
+        with col_group:
+            groups = watchlist.groups()
+            group = st.selectbox(
+                "Liste (optional)", options=["– keine –", *groups, "+ neue Liste"], index=0
             )
-            neue_gruppe = (
+            new_group = (
                 st.text_input("Name der neuen Liste", key="neue_liste")
-                if gruppe == "+ neue Liste"
+                if group == "+ neue Liste"
                 else ""
             )
-        with spalte_knopf:
+        with col_button:
             st.write("")
             st.write("")
-            hinzufuegen = st.form_submit_button("Hinzufuegen", width="stretch")
+            add_clicked = st.form_submit_button("Hinzufuegen", width="stretch")
 
-    if hinzufuegen:
-        ticker = normalise_ticker(eingabe)
+    if add_clicked:
+        ticker = normalise_ticker(entered)
         if ticker is None:
             st.error(
-                f"'{eingabe}' ist kein gueltiger Ticker. Erlaubt sind Buchstaben, Ziffern, "
+                f"'{entered}' ist kein gueltiger Ticker. Erlaubt sind Buchstaben, Ziffern, "
                 "Punkt und Bindestrich."
             )
         else:
             watchlist.add(ticker)
-            ziel = neue_gruppe.strip() if gruppe == "+ neue Liste" else (
-                gruppe if gruppe not in ("– keine –", "+ neue Liste") else ""
+            target_group = new_group.strip() if group == "+ neue Liste" else (
+                group if group not in ("– keine –", "+ neue Liste") else ""
             )
-            if ziel:
-                watchlist.assign(ticker, ziel)
-            st.success(f"{ticker} aufgenommen." + (f" Liste: {ziel}" if ziel else ""))
+            if target_group:
+                watchlist.assign(ticker, target_group)
+            st.success(f"{ticker} aufgenommen." + (f" Liste: {target_group}" if target_group else ""))
             st.rerun()
 
     st.divider()
 
-    eintraege = watchlist.all()
-    if not eintraege:
+    entries = watchlist.all()
+    if not entries:
         st.info("Noch keine Titel im Universum.")
     else:
-        st.caption(f"{len(eintraege)} Titel im Universum")
-        for eintrag in eintraege:
-            spalte_name, spalte_gruppen, spalte_entfernen = st.columns([3, 3, 1])
-            with spalte_name:
-                bezeichnung = eintrag.display_name or ""
-                st.write(f"**{eintrag.ticker}**" + (f" – {bezeichnung}" if bezeichnung else ""))
-            with spalte_gruppen:
-                auswahl = st.multiselect(
-                    "Listen", options=watchlist.groups(), default=list(eintrag.groups),
-                    key=f"gruppen_{eintrag.ticker}", label_visibility="collapsed",
+        st.caption(f"{len(entries)} Titel im Universum")
+        for entry in entries:
+            col_name, col_groups, col_remove = st.columns([3, 3, 1])
+            with col_name:
+                bezeichnung = entry.display_name or ""
+                st.write(f"**{entry.ticker}**" + (f" – {bezeichnung}" if bezeichnung else ""))
+            with col_groups:
+                selection = st.multiselect(
+                    "Listen", options=watchlist.groups(), default=list(entry.groups),
+                    key=f"gruppen_{entry.ticker}", label_visibility="collapsed",
                     placeholder="keiner Liste zugeordnet",
                 )
-                if set(auswahl) != set(eintrag.groups):
-                    watchlist.set_groups(eintrag.ticker, auswahl)
+                if set(selection) != set(entry.groups):
+                    watchlist.set_groups(entry.ticker, selection)
                     st.rerun()
-            with spalte_entfernen:
-                if st.button("Entfernen", key=f"weg_{eintrag.ticker}", width="stretch"):
-                    watchlist.remove(eintrag.ticker)
+            with col_remove:
+                if st.button("Entfernen", key=f"weg_{entry.ticker}", width="stretch"):
+                    watchlist.remove(entry.ticker)
                     st.rerun()
 
 with tab_import:
@@ -88,16 +88,16 @@ with tab_import:
     )
     st.code("ticker,name,gruppe\nAAPL,Apple Inc.,Tech\nSAP.DE,SAP SE,Tech\nO,Realty Income,Dividende")
 
-    datei = st.file_uploader("CSV-Datei", type=["csv", "txt"])
-    if datei is not None and st.button("Importieren"):
-        inhalt = datei.getvalue().decode("utf-8-sig", errors="replace")
-        uebernommen, abgelehnt = watchlist.import_csv(inhalt)
-        if uebernommen:
-            st.success(f"{len(uebernommen)} Titel uebernommen: {', '.join(uebernommen)}")
-        if abgelehnt:
+    uploaded_file = st.file_uploader("CSV-Datei", type=["csv", "txt"])
+    if uploaded_file is not None and st.button("Importieren"):
+        content = uploaded_file.getvalue().decode("utf-8-sig", errors="replace")
+        accepted, rejected = watchlist.import_csv(content)
+        if accepted:
+            st.success(f"{len(accepted)} Titel uebernommen: {', '.join(accepted)}")
+        if rejected:
             # Abgelehnte Zeilen werden benannt, nicht stillschweigend verworfen.
-            st.warning(f"{len(abgelehnt)} Eintraege abgelehnt: {', '.join(abgelehnt)}")
-        if not uebernommen and not abgelehnt:
+            st.warning(f"{len(rejected)} Eintraege abgelehnt: {', '.join(rejected)}")
+        if not accepted and not rejected:
             st.info("Die Datei enthielt keine verwertbaren Zeilen.")
 
 with tab_listen:
@@ -108,25 +108,25 @@ with tab_listen:
             st.success(f"Liste '{name.strip()}' angelegt.")
             st.rerun()
 
-    gruppen = watchlist.groups()
-    if not gruppen:
+    groups = watchlist.groups()
+    if not groups:
         st.info("Noch keine Listen angelegt.")
     else:
-        eintraege = watchlist.all()
-        uebersicht = pd.DataFrame(
+        entries = watchlist.all()
+        overview = pd.DataFrame(
             [
                 {
-                    "Liste": gruppe,
-                    "Titel": len([e for e in eintraege if gruppe in e.groups]),
-                    "Ticker": ", ".join(e.ticker for e in eintraege if gruppe in e.groups),
+                    "Liste": group,
+                    "Titel": len([e for e in entries if group in e.groups]),
+                    "Ticker": ", ".join(e.ticker for e in entries if group in e.groups),
                 }
-                for gruppe in gruppen
+                for group in groups
             ]
         )
-        st.dataframe(uebersicht, width="stretch", hide_index=True)
+        st.dataframe(overview, width="stretch", hide_index=True)
 
-        zu_loeschen = st.selectbox("Liste loeschen", options=["– auswaehlen –", *gruppen])
-        if zu_loeschen != "– auswaehlen –" and st.button("Liste loeschen"):
-            watchlist.delete_group(zu_loeschen)
-            st.success(f"Liste '{zu_loeschen}' geloescht. Die Titel bleiben erhalten.")
+        to_delete = st.selectbox("Liste loeschen", options=["– auswaehlen –", *groups])
+        if to_delete != "– auswaehlen –" and st.button("Liste loeschen"):
+            watchlist.delete_group(to_delete)
+            st.success(f"Liste '{to_delete}' geloescht. Die Titel bleiben erhalten.")
             st.rerun()

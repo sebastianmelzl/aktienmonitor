@@ -30,35 +30,35 @@ page_header("Detailansicht", "Kennzahlen, Chart und Analystenbild eines Titels")
 
 watchlist = get_watchlist()
 service = get_service()
-eintraege = watchlist.all()
+entries = watchlist.all()
 
-if not eintraege:
+if not entries:
     st.info("Das Universum ist leer. Bitte zuerst unter **Watchlist** Titel aufnehmen.")
     st.stop()
 
-spalte_auswahl, spalte_zeitraum, spalte_knopf = st.columns([2, 1, 1])
-with spalte_auswahl:
+col_selection, col_period, col_button = st.columns([2, 1, 1])
+with col_selection:
     ticker = st.selectbox(
         "Titel",
-        options=[e.ticker for e in eintraege],
+        options=[e.ticker for e in entries],
         format_func=lambda t: next(
             (f"{e.ticker} – {e.display_name}" if e.display_name else e.ticker
-             for e in eintraege if e.ticker == t), t
+             for e in entries if e.ticker == t), t
         ),
     )
-with spalte_zeitraum:
-    zeitraum = st.selectbox(
+with col_period:
+    period = st.selectbox(
         "Zeitraum", options=["1y", "2y", "5y", "10y", "max"], index=2,
         help="Laengere Zeitraeume werden fuer SMA 200 und Momentum 12 Monate benoetigt.",
     )
-with spalte_knopf:
+with col_button:
     st.write("")
-    aktualisieren = st.button("Jetzt aktualisieren", width="stretch",
+    refresh_clicked = st.button("Jetzt aktualisieren", width="stretch",
                               help="Verwirft den Cache dieses Titels und ruft alle Daten neu ab.")
 
 with st.spinner(f"Daten fuer {ticker} werden geladen ..."):
     snapshot = service.get_snapshot(
-        ticker, force_refresh=aktualisieren, history_period=zeitraum
+        ticker, force_refresh=refresh_clicked, history_period=period
     )
 
 if not snapshot.has_any_data:
@@ -70,13 +70,13 @@ if not snapshot.has_any_data:
     st.stop()
 
 # --- Kopfzeile ---------------------------------------------------------------
-profil = snapshot.profile
-titel = profil.name or ticker
-untertitel = " · ".join(t for t in (profil.sector, profil.industry, profil.exchange) if t)
-st.header(titel)
-if untertitel:
-    st.caption(untertitel)
-if profil.is_fund:
+profile = snapshot.profile
+title_text = profile.name or ticker
+subtitle = " · ".join(t for t in (profile.sector, profile.industry, profile.exchange) if t)
+st.header(title_text)
+if subtitle:
+    st.caption(subtitle)
+if profile.is_fund:
     st.warning(
         "Dieser Titel ist ein Fonds bzw. ETF. Unternehmenskennzahlen wie ROE, Margen "
         "oder ROIC existieren dafuer nicht und werden als 'n/a' gefuehrt.",
@@ -105,7 +105,7 @@ with st.sidebar:
         "Bestimmt, wie stark die vier Teilscores in den Gesamtscore eingehen. "
         "Die Einstellung gilt in der gesamten App."
     )
-    gewichte = weight_sliders(get_settings(), key_prefix="detail_")
+    weights = weight_sliders(get_settings(), key_prefix="detail_")
     if st.button("Sektordaten neu aufbauen", width="stretch"):
         clear_sector_cache()
         st.rerun()
@@ -118,30 +118,30 @@ st.caption(
     "aufklappen."
 )
 
-statistik = get_sector_statistics(watchlist.tickers())
-bewertung = score_snapshot(snapshot, statistics=statistik, weights=gewichte)
-render_total_score(bewertung)
-render_sector_note(statistik, snapshot.profile.sector)
+statistics = get_sector_statistics(watchlist.tickers())
+scored = score_snapshot(snapshot, statistics=statistics, weights=weights)
+render_total_score(scored)
+render_sector_note(statistics, snapshot.profile.sector)
 
-for teilscore in bewertung.categories.values():
-    render_breakdown(teilscore, snapshot.currency)
+for category_score in scored.categories.values():
+    render_breakdown(category_score, snapshot.currency)
 
 # --- Chart -------------------------------------------------------------------
 st.subheader("Kursverlauf")
-indikatoren = st.multiselect(
+indicators = st.multiselect(
     "Indikatoren einblenden", options=list(INDICATOR_OPTIONS),
     default=["SMA 50", "SMA 200"],
 )
-darstellung = st.radio(
+chart_style = st.radio(
     "Darstellung", options=["Kerzen", "Linie"], horizontal=True, label_visibility="collapsed"
 )
-figur = price_chart(
-    snapshot.bars, indicators=tuple(indikatoren), candlestick=(darstellung == "Kerzen")
+figure = price_chart(
+    snapshot.bars, indicators=tuple(indicators), candlestick=(chart_style == "Kerzen")
 )
-if figur is None:
+if figure is None:
     st.info("Fuer diesen Titel liegt keine Kurshistorie vor.")
 else:
-    st.plotly_chart(figur, width="stretch")
+    st.plotly_chart(figure, width="stretch")
 
 # --- Kennzahlen --------------------------------------------------------------
 st.subheader("Kennzahlen")
@@ -174,29 +174,29 @@ with tab_analysten:
     st.caption(coverage_caption(snapshot.analyst, "Analystendaten"))
     st.progress(snapshot.analyst.coverage)
 
-    kennzahl_konsens = snapshot.analyst.get("consensus_rating")
-    kennzahl_anzahl = snapshot.analyst.get("analyst_count")
-    kennzahl_ziel = snapshot.analyst.get("target_mean")
-    kennzahl_abstand = snapshot.analyst.get("target_upside")
+    metric_consensus = snapshot.analyst.get("consensus_rating")
+    metric_count = snapshot.analyst.get("analyst_count")
+    metric_target = snapshot.analyst.get("target_mean")
+    metric_upside = snapshot.analyst.get("target_upside")
 
-    spalten = st.columns(4)
-    spalten[0].metric(
+    columns = st.columns(4)
+    columns[0].metric(
         "Konsens-Einordnung",
-        kennzahl_konsens.text if kennzahl_konsens and kennzahl_konsens.is_available else NOT_AVAILABLE,
+        metric_consensus.text if metric_consensus and metric_consensus.is_available else NOT_AVAILABLE,
     )
-    spalten[1].metric(
+    columns[1].metric(
         "Anzahl Analysten",
-        german_number(kennzahl_anzahl.value, 0)
-        if kennzahl_anzahl and kennzahl_anzahl.is_available else NOT_AVAILABLE,
+        german_number(metric_count.value, 0)
+        if metric_count and metric_count.is_available else NOT_AVAILABLE,
     )
-    spalten[2].metric(
+    columns[2].metric(
         "Kursziel (Schnitt)",
-        german_number(kennzahl_ziel.value, 2)
-        if kennzahl_ziel and kennzahl_ziel.is_available else NOT_AVAILABLE,
+        german_number(metric_target.value, 2)
+        if metric_target and metric_target.is_available else NOT_AVAILABLE,
     )
-    spalten[3].metric(
+    columns[3].metric(
         "Abstand zum Kursziel",
-        format_change(kennzahl_abstand.value if kennzahl_abstand else None),
+        format_change(metric_upside.value if metric_upside else None),
     )
 
     st.dataframe(
@@ -206,13 +206,13 @@ with tab_analysten:
 # --- Schlagzeilen und Sentiment ----------------------------------------------
 st.subheader("Schlagzeilen")
 
-konfiguration = get_config()
-unbewertet = [m for m in snapshot.news if not m.sentiment]
-if not konfiguration.has_anthropic and unbewertet:
+app_config = get_config()
+unclassified = [m for m in snapshot.news if not m.sentiment]
+if not app_config.has_anthropic and unclassified:
     # Nur melden, wenn tatsaechlich etwas unbewertet bleibt - bereits
     # eingeordnete Meldungen stehen weiterhin aus dem Cache zur Verfuegung.
     st.info(
-        f"{len(unbewertet)} von {len(snapshot.news)} Meldungen sind nicht eingeordnet: "
+        f"{len(unclassified)} von {len(snapshot.news)} Meldungen sind nicht eingeordnet: "
         "dafuer wird ein Anthropic-Schluessel benoetigt. Er laesst sich jederzeit in der "
         "`.env` unter `ANTHROPIC_API_KEY` nachtragen; bereits eingeordnete Meldungen "
         "bleiben erhalten.",
@@ -236,15 +236,15 @@ else:
         "sich am Original nachlesen."
     )
     SYMBOLE = {"positiv": "🟢", "negativ": "🔴", "neutral": "⚪"}
-    for meldung in snapshot.news[:25]:
-        symbol = SYMBOLE.get(meldung.sentiment or "", "▫️")
-        einordnung = meldung.sentiment or "nicht eingeordnet"
+    for item in snapshot.news[:25]:
+        marker = SYMBOLE.get(item.sentiment or "", "▫️")
+        verdict_label = item.sentiment or "nicht eingeordnet"
         st.markdown(
-            f"{symbol} **[{meldung.headline}]({meldung.url})**  \n"
-            f"*{meldung.source_name} · {meldung.published_at:%d.%m.%Y %H:%M} · {einordnung}*"
+            f"{marker} **[{item.headline}]({item.url})**  \n"
+            f"*{item.source_name} · {item.published_at:%d.%m.%Y %H:%M} · {verdict_label}*"
         )
-        if meldung.sentiment_rationale:
-            st.caption(f"Begruendung der Einordnung: {meldung.sentiment_rationale}")
-        elif meldung.summary:
-            st.caption(meldung.summary[:300])
+        if item.sentiment_rationale:
+            st.caption(f"Begruendung der Einordnung: {item.sentiment_rationale}")
+        elif item.summary:
+            st.caption(item.summary[:300])
         st.divider()

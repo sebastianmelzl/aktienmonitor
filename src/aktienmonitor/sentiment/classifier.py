@@ -187,58 +187,58 @@ class SentimentClassifier:
         if not items:
             return []
 
-        ergebnis: list[NewsItem] = list(items)
-        offen: list[tuple[int, NewsItem]] = []
+        result: list[NewsItem] = list(items)
+        pending: list[tuple[int, NewsItem]] = []
 
         # 1. Was schon eingeordnet wurde, aus dem Cache holen.
         for position, item in enumerate(items):
-            gespeichert = self._from_cache(item)
-            if gespeichert is not None:
-                ergebnis[position] = replace(
+            stored = self._from_cache(item)
+            if stored is not None:
+                result[position] = replace(
                     item,
-                    sentiment=str(gespeichert.label),
-                    sentiment_rationale=gespeichert.rationale,
+                    sentiment=str(stored.label),
+                    sentiment_rationale=stored.rationale,
                 )
             else:
-                offen.append((position, item))
+                pending.append((position, item))
 
-        if not offen:
+        if not pending:
             logger.info("Sentiment: alle %d Schlagzeilen aus dem Cache", len(items))
-            return ergebnis
+            return result
 
         if cache_only:
             logger.info(
                 "Sentiment: %d Schlagzeilen ohne gespeicherte Einordnung (kein Abruf angefordert)",
-                len(offen),
+                len(pending),
             )
-            return ergebnis
+            return result
 
         if not self.available:
             logger.info(
-                "Sentiment: kein Schluessel - %d Schlagzeilen bleiben unbewertet", len(offen)
+                "Sentiment: kein Schluessel - %d Schlagzeilen bleiben unbewertet", len(pending)
             )
-            return ergebnis
+            return result
 
         # 2. Den Rest in Buendeln klassifizieren.
-        for start in range(0, len(offen), BATCH_SIZE):
-            buendel = offen[start : start + BATCH_SIZE]
+        for start in range(0, len(pending), BATCH_SIZE):
+            batch = pending[start : start + BATCH_SIZE]
             try:
-                urteile = self._classify_batch([item for _, item in buendel])
+                verdicts = self._classify_batch([item for _, item in batch])
             except Exception as exc:  # noqa: BLE001 - ein Buendel darf den Rest nicht kippen
                 logger.warning("Sentiment-Buendel fehlgeschlagen: %s", exc)
                 continue
 
-            for lokal, (position, item) in enumerate(buendel):
-                urteil = urteile.get(lokal)
-                if urteil is None:
+            for local_index, (position, item) in enumerate(batch):
+                verdict = verdicts.get(local_index)
+                if verdict is None:
                     # Das Modell hat zu dieser Schlagzeile nichts geliefert -
                     # sie bleibt unbewertet statt auf "neutral" gesetzt zu werden.
                     continue
-                self._to_cache(item, urteil)
-                ergebnis[position] = replace(
-                    item, sentiment=str(urteil.label), sentiment_rationale=urteil.rationale
+                self._to_cache(item, verdict)
+                result[position] = replace(
+                    item, sentiment=str(verdict.label), sentiment_rationale=verdict.rationale
                 )
-        return ergebnis
+        return result
 
     # --- Cache ---------------------------------------------------------------
 
@@ -246,15 +246,15 @@ class SentimentClassifier:
         return f"sentiment|{self.model}|{headline_key(item)}"
 
     def _from_cache(self, item: NewsItem) -> Verdict | None:
-        eintrag = self.cache.get(self._cache_key(item), allow_stale=True)
-        if eintrag is None or not isinstance(eintrag.payload, dict):
+        entry = self.cache.get(self._cache_key(item), allow_stale=True)
+        if entry is None or not isinstance(entry.payload, dict):
             return None
-        rohes_label = eintrag.payload.get("label")
+        rohes_label = entry.payload.get("label")
         try:
             label = SentimentLabel(rohes_label)
         except ValueError:
             return None
-        return Verdict(label=label, rationale=str(eintrag.payload.get("rationale") or ""))
+        return Verdict(label=label, rationale=str(entry.payload.get("rationale") or ""))
 
     def _to_cache(self, item: NewsItem, verdict: Verdict) -> None:
         self.cache.set(
@@ -269,12 +269,12 @@ class SentimentClassifier:
 
     def _classify_batch(self, items: list[NewsItem]) -> dict[int, Verdict]:
         """Ordnet ein Buendel ein. Schluessel des Ergebnisses ist der Index im Buendel."""
-        zeilen = [
+        rows = [
             f"{i}. [{item.source_name}] {item.headline}" for i, item in enumerate(items)
         ]
         anfrage = (
             "Ordne jede der folgenden Schlagzeilen ein. Gib fuer jede Zeile genau einen "
-            "Eintrag mit ihrem Index zurueck.\n\n" + "\n".join(zeilen)
+            "Eintrag mit ihrem Index zurueck.\n\n" + "\n".join(rows)
         )
 
         antwort = self._get_client().messages.create(
@@ -306,15 +306,15 @@ class SentimentClassifier:
             logger.warning("Sentiment: Antwort war kein gueltiges JSON")
             return {}
 
-        urteile: dict[int, Verdict] = {}
-        for eintrag in daten.get("verdicts", []):
-            if not isinstance(eintrag, dict):
+        verdicts: dict[int, Verdict] = {}
+        for entry in daten.get("verdicts", []):
+            if not isinstance(entry, dict):
                 continue
-            index = eintrag.get("index")
-            label = _LABEL_MAP.get(str(eintrag.get("label", "")).lower())
+            index = entry.get("index")
+            label = _LABEL_MAP.get(str(entry.get("label", "")).lower())
             if not isinstance(index, int) or label is None or not (0 <= index < len(items)):
                 continue
-            urteile[index] = Verdict(
-                label=label, rationale=str(eintrag.get("rationale") or "").strip()
+            verdicts[index] = Verdict(
+                label=label, rationale=str(entry.get("rationale") or "").strip()
             )
-        return urteile
+        return verdicts

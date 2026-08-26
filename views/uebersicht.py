@@ -40,8 +40,8 @@ service = get_service()
 store = get_settings()
 config = get_config()
 
-eintraege = watchlist.all()
-if not eintraege:
+entries = watchlist.all()
+if not entries:
     st.info(
         "Das Universum ist noch leer. Unter **Watchlist** koennen Titel per Ticker "
         "hinzugefuegt oder als CSV importiert werden."
@@ -49,19 +49,19 @@ if not eintraege:
     st.stop()
 
 # --- Auswahl und Aktualisierung ---------------------------------------------
-gruppen = watchlist.groups()
-spalte_gruppe, spalte_modus, spalte_knopf = st.columns([2, 2, 1])
+groups = watchlist.groups()
+col_group, col_mode, col_button = st.columns([2, 2, 1])
 
-with spalte_gruppe:
-    gruppe = st.selectbox("Liste", options=["Alle Titel", *gruppen])
-with spalte_modus:
-    alles_neu = st.checkbox(
+with col_group:
+    group = st.selectbox("Liste", options=["Alle Titel", *groups])
+with col_mode:
+    discard_cache = st.checkbox(
         "Cache verwerfen",
         help="Ohne Haken werden nur Daten geholt, deren Cache-Lebensdauer abgelaufen ist. "
              "Mit Haken wird alles neu abgerufen - das dauert deutlich laenger und belastet "
              "die Rate-Limits der Anbieter.",
     )
-    mit_news = st.checkbox(
+    with_news_selected = st.checkbox(
         "Schlagzeilen und Sentiment mitladen",
         value=config.has_anthropic,
         help="Holt zu jedem Titel die Meldungen und ordnet neue Schlagzeilen per "
@@ -69,32 +69,32 @@ with spalte_modus:
              "und kosten nichts. Ohne Anthropic-Schluessel werden die Meldungen nur "
              "geholt, nicht bewertet.",
     )
-with spalte_knopf:
+with col_button:
     st.write("")
-    aktualisieren = st.button("Alle Werte aktualisieren", type="primary", width="stretch")
+    refresh_clicked = st.button("Alle Werte aktualisieren", type="primary", width="stretch")
 
-ticker = watchlist.tickers(None if gruppe == "Alle Titel" else gruppe)
+ticker = watchlist.tickers(None if group == "Alle Titel" else group)
 if not ticker:
-    st.info(f"Der Liste '{gruppe}' ist noch kein Titel zugeordnet.")
+    st.info(f"Der Liste '{group}' ist noch kein Titel zugeordnet.")
     st.stop()
 
-if aktualisieren:
-    fortschritt = st.progress(0.0, text="Abruf wird vorbereitet ...")
+if refresh_clicked:
+    progress_bar = st.progress(0.0, text="Abruf wird vorbereitet ...")
 
-    def melde(index: int, gesamt: int, kuerzel: str) -> None:
+    def report_progress(index: int, gesamt: int, kuerzel: str) -> None:
         anteil = index / gesamt if gesamt else 1.0
         text = (
             f"{index} von {gesamt} Titeln abgerufen"
             if not kuerzel
             else f"{kuerzel} wird abgerufen ({index + 1} von {gesamt}) ..."
         )
-        fortschritt.progress(min(1.0, anteil), text=text)
+        progress_bar.progress(min(1.0, anteil), text=text)
 
     with st.spinner("Daten werden geholt - bei kaltem Cache dauert das einige Minuten."):
         service.get_snapshots(
-            ticker, force_refresh=alles_neu, with_news=mit_news, progress=melde
+            ticker, force_refresh=discard_cache, with_news=with_news_selected, progress=report_progress
         )
-    fortschritt.empty()
+    progress_bar.empty()
     store.set(LAST_REFRESH_KEY, datetime.now(UTC).isoformat())
     clear_sector_cache()
     st.success(f"{len(ticker)} Titel aktualisiert.")
@@ -103,12 +103,15 @@ if aktualisieren:
 # Die Ansicht selbst ruft nie ab: sonst wuerde jedes Umstellen eines Filters
 # einen Abruf ausloesen. Neue Daten kommen ausschliesslich ueber den Knopf.
 snapshots = service.get_snapshots(ticker, cache_only=True)
-statistik = get_sector_statistics(watchlist.tickers())
-gewichte = get_score_weights()
-bewertungen = {t: score_snapshot(s, statistics=statistik, weights=gewichte) for t, s in snapshots.items()}
-zeilen = build_rows(snapshots, bewertungen)
+statistics = get_sector_statistics(watchlist.tickers())
+weights = get_score_weights()
+scored_by_ticker = {
+    ticker_key: score_snapshot(snap, statistics=statistics, weights=weights)
+    for ticker_key, snap in snapshots.items()
+}
+rows = build_rows(snapshots, scored_by_ticker)
 
-ohne_daten = [z["ticker"] for z in zeilen if z["note"] == "Keine Daten abrufbar"]
+without_data = [z["ticker"] for z in rows if z["note"] == "Keine Daten abrufbar"]
 
 # --- Filter ------------------------------------------------------------------
 with st.sidebar:
@@ -117,44 +120,44 @@ with st.sidebar:
 
     st.subheader("Filter")
     min_score = st.slider("Mindest-Gesamtscore", 0, 100, 0, step=5)
-    sektoren = sorted({z["sector"] for z in zeilen if z["sector"]})
-    gewaehlte_sektoren = st.multiselect("Sektor", options=sektoren, placeholder="alle Sektoren")
+    sectors = sorted({z["sector"] for z in rows if z["sector"]})
+    selected_sectors = st.multiselect("Sektor", options=sectors, placeholder="alle Sektoren")
 
     st.caption("Marktkapitalisierung (Mrd.)")
-    spalte_min, spalte_max = st.columns(2)
-    kap_min = spalte_min.number_input("von", min_value=0.0, value=0.0, step=1.0)
-    kap_max = spalte_max.number_input("bis", min_value=0.0, value=0.0, step=1.0,
+    col_min, col_max = st.columns(2)
+    cap_min = col_min.number_input("von", min_value=0.0, value=0.0, step=1.0)
+    cap_max = col_max.number_input("bis", min_value=0.0, value=0.0, step=1.0,
                                       help="0 bedeutet: keine Obergrenze")
 
-    min_dividende = st.slider("Mindest-Dividendenrendite (%)", 0.0, 10.0, 0.0, step=0.5)
-    max_kgv = st.slider("Hoechstes KGV", 0, 100, 0, step=5,
+    min_dividend = st.slider("Mindest-Dividendenrendite (%)", 0.0, 10.0, 0.0, step=0.5)
+    max_pe_input = st.slider("Hoechstes KGV", 0, 100, 0, step=5,
                         help="0 bedeutet: keine Obergrenze")
-    fonds_zeigen = st.checkbox("ETFs und Fonds einbeziehen", value=True)
+    show_funds = st.checkbox("ETFs und Fonds einbeziehen", value=True)
 
-kriterien = OverviewFilter(
+criteria = OverviewFilter(
     min_score=float(min_score) if min_score > 0 else None,
-    sectors=gewaehlte_sektoren,
-    min_market_cap=kap_min * 1e9 if kap_min > 0 else None,
-    max_market_cap=kap_max * 1e9 if kap_max > 0 else None,
-    min_dividend_yield=min_dividende if min_dividende > 0 else None,
-    max_pe=float(max_kgv) if max_kgv > 0 else None,
-    include_funds=fonds_zeigen,
+    sectors=selected_sectors,
+    min_market_cap=cap_min * 1e9 if cap_min > 0 else None,
+    max_market_cap=cap_max * 1e9 if cap_max > 0 else None,
+    min_dividend_yield=min_dividend if min_dividend > 0 else None,
+    max_pe=float(max_pe_input) if max_pe_input > 0 else None,
+    include_funds=show_funds,
 )
-ergebnis = apply_filters(zeilen, kriterien)
+result = apply_filters(rows, criteria)
 
 # --- Kopfzeile ---------------------------------------------------------------
-letzte = store.get(LAST_REFRESH_KEY, None)
+last_refresh = store.get(LAST_REFRESH_KEY, None)
 kpi = st.columns(4)
-kpi[0].metric("Titel im Universum", len(zeilen))
-kpi[1].metric("Nach Filter", len(ergebnis.rows))
-bewertbar = [z["score_total"] for z in ergebnis.rows if z["score_total"] is not None]
+kpi[0].metric("Titel im Universum", len(rows))
+kpi[1].metric("Nach Filter", len(result.rows))
+scored_values = [z["score_total"] for z in result.rows if z["score_total"] is not None]
 kpi[2].metric(
     "Mittlerer Score",
-    german_number(sum(bewertbar) / len(bewertbar), 1) if bewertbar else NOT_AVAILABLE,
+    german_number(sum(scored_values) / len(scored_values), 1) if scored_values else NOT_AVAILABLE,
 )
-if isinstance(letzte, str):
+if isinstance(last_refresh, str):
     try:
-        stand = datetime.fromisoformat(letzte)
+        stand = datetime.fromisoformat(last_refresh)
         stunden = (datetime.now(UTC) - stand).total_seconds() / 3600
         kpi[3].metric(
             "Letzte Aktualisierung",
@@ -166,32 +169,32 @@ if isinstance(letzte, str):
 else:
     kpi[3].metric("Letzte Aktualisierung", "noch nie")
 
-if ohne_daten:
+if without_data:
     st.warning(
-        f"Fuer {len(ohne_daten)} Titel liegen keine Daten vor: {', '.join(ohne_daten[:12])}"
-        + (" ..." if len(ohne_daten) > 12 else "")
+        f"Fuer {len(without_data)} Titel liegen keine Daten vor: {', '.join(without_data[:12])}"
+        + (" ..." if len(without_data) > 12 else "")
         + ". Bitte einmal aktualisieren; bleiben sie leer, ist das Symbol vermutlich unbekannt."
     )
 
-if ergebnis.excluded_by_missing:
+if result.excluded_by_missing:
     st.info(
-        f"{ergebnis.excluded_by_missing} Titel sind nicht durch den Filter gefallen, sondern "
+        f"{result.excluded_by_missing} Titel sind nicht durch den Filter gefallen, sondern "
         f"**nicht pruefbar** - die gefilterte Kennzahl fehlt dort: "
-        f"{', '.join(ergebnis.missing_tickers[:12])}"
-        + (" ..." if len(ergebnis.missing_tickers) > 12 else ""),
+        f"{', '.join(result.missing_tickers[:12])}"
+        + (" ..." if len(result.missing_tickers) > 12 else ""),
         icon="ℹ️",
     )
 
 # --- Tabelle -----------------------------------------------------------------
-if not ergebnis.rows:
+if not result.rows:
     st.warning("Kein Titel erfuellt die gewaehlten Filterkriterien.")
     st.stop()
 
-anzeige = pd.DataFrame(ergebnis.rows)[[key for key, _ in COLUMNS]]
-anzeige.columns = [label for _, label in COLUMNS]
+display_frame = pd.DataFrame(result.rows)[[key for key, _ in COLUMNS]]
+display_frame.columns = [label for _, label in COLUMNS]
 
 st.dataframe(
-    anzeige,
+    display_frame,
     width="stretch",
     hide_index=True,
     column_config={
@@ -226,20 +229,20 @@ st.caption(
 )
 
 # --- Export ------------------------------------------------------------------
-spalte_de, spalte_en = st.columns(2)
-zeitstempel = datetime.now().strftime("%Y%m%d_%H%M")
-spalte_de.download_button(
+col_de, col_en = st.columns(2)
+timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+col_de.download_button(
     "Als CSV exportieren (deutsches Format)",
-    data=rows_to_csv(ergebnis.rows, german=True).encode("utf-8-sig"),
-    file_name=f"aktienmonitor_{zeitstempel}.csv",
+    data=rows_to_csv(result.rows, german=True).encode("utf-8-sig"),
+    file_name=f"aktienmonitor_{timestamp}.csv",
     mime="text/csv",
     width="stretch",
     help="Semikolon als Trennzeichen, Komma als Dezimaltrennzeichen - oeffnet in Excel direkt.",
 )
-spalte_en.download_button(
+col_en.download_button(
     "Als CSV exportieren (internationales Format)",
-    data=rows_to_csv(ergebnis.rows, german=False).encode("utf-8"),
-    file_name=f"aktienmonitor_{zeitstempel}_intl.csv",
+    data=rows_to_csv(result.rows, german=False).encode("utf-8"),
+    file_name=f"aktienmonitor_{timestamp}_intl.csv",
     mime="text/csv",
     width="stretch",
 )

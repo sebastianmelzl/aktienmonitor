@@ -90,9 +90,9 @@ def build_rows(snapshots: dict, scores: dict[str, TotalScore]) -> list[dict[str,
     Titel ohne Score stehen am Ende - sie sind nicht "schlecht", sondern
     unbewertbar, und werden deshalb nicht unter die bewerteten gemischt.
     """
-    zeilen = [build_row(snap, scores[ticker]) for ticker, snap in snapshots.items()]
+    rows = [build_row(snap, scores[ticker]) for ticker, snap in snapshots.items()]
     return sorted(
-        zeilen,
+        rows,
         key=lambda z: (z["score_total"] is None, -(z["score_total"] or 0.0), z["ticker"]),
     )
 
@@ -162,38 +162,38 @@ def apply_filters(rows: list[dict[str, Any]], criteria: OverviewFilter) -> Filte
         ("pe_trailing", criteria.max_pe, "max"),
     )
 
-    for zeile in rows:
-        if criteria.sectors and zeile["sector"] not in criteria.sectors:
+    for row in rows:
+        if criteria.sectors and row["sector"] not in criteria.sectors:
             nach_wert += 1
             continue
-        if not criteria.include_funds and zeile.get("is_fund"):
+        if not criteria.include_funds and row.get("is_fund"):
             nach_wert += 1
             continue
 
         fehlt = False
         verfehlt = False
-        for feld, schwelle, richtung in numerische_pruefungen:
-            if schwelle is None:
+        for feld, threshold, richtung in numerische_pruefungen:
+            if threshold is None:
                 continue
-            wert = zeile.get(feld)
+            wert = row.get(feld)
             if wert is None:
                 fehlt = True
                 break
-            if richtung == "min" and wert < schwelle:
+            if richtung == "min" and wert < threshold:
                 verfehlt = True
                 break
-            if richtung == "max" and wert > schwelle:
+            if richtung == "max" and wert > threshold:
                 verfehlt = True
                 break
 
         if fehlt:
             nach_fehlend += 1
-            fehlende.append(zeile["ticker"])
+            fehlende.append(row["ticker"])
             continue
         if verfehlt:
             nach_wert += 1
             continue
-        behalten.append(zeile)
+        behalten.append(row)
 
     return FilterResult(
         rows=behalten,
@@ -214,10 +214,10 @@ def rows_to_csv(rows: list[dict[str, Any]], *, german: bool = True) -> str:
     schreiber = csv.writer(puffer, delimiter=";" if german else ",", lineterminator="\n")
     schreiber.writerow([label for _, label in COLUMNS])
 
-    for zeile in rows:
+    for row in rows:
         ausgabe = []
         for schluessel, _ in COLUMNS:
-            wert = zeile.get(schluessel)
+            wert = row.get(schluessel)
             if wert is None:
                 ausgabe.append("")
             elif isinstance(wert, float):
@@ -251,13 +251,13 @@ def build_comparison_matrix(
             if metric.key not in schluessel:
                 schluessel.append(metric.key)
 
-    zeilen = []
+    rows = []
     for key in schluessel:
-        eintrag: dict[str, Any] = {"key": key, "label": key}
+        entry: dict[str, Any] = {"key": key, "label": key}
         for kuerzel in ticker:
             metric = getattr(snapshots[kuerzel], category).get(key)
             if metric is not None:
-                eintrag["label"] = metric.label
-            eintrag[kuerzel] = metric
-        zeilen.append(eintrag)
-    return ticker, zeilen
+                entry["label"] = metric.label
+            entry[kuerzel] = metric
+        rows.append(entry)
+    return ticker, rows

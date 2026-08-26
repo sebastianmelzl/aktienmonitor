@@ -271,13 +271,13 @@ class StockDataService:
         aufgerufen.
         """
         eindeutig = list(dict.fromkeys(t.upper() for t in tickers))
-        ergebnis: dict[str, StockSnapshot] = {}
+        result: dict[str, StockSnapshot] = {}
 
         for index, ticker in enumerate(eindeutig):
             if progress is not None:
                 progress(index, len(eindeutig), ticker)
             try:
-                ergebnis[ticker] = self.get_snapshot(
+                result[ticker] = self.get_snapshot(
                     ticker,
                     force_refresh=force_refresh,
                     cache_only=cache_only,
@@ -286,7 +286,7 @@ class StockDataService:
                 )
             except Exception as exc:  # noqa: BLE001 - ein Titel darf den Lauf nicht kippen
                 logger.exception("Abruf fuer %s fehlgeschlagen", ticker)
-                ergebnis[ticker] = StockSnapshot(
+                result[ticker] = StockSnapshot(
                     ticker=ticker,
                     profile=SecurityProfile(ticker=ticker),
                     errors=[f"Abruf fehlgeschlagen: {type(exc).__name__}: {exc}"],
@@ -294,7 +294,7 @@ class StockDataService:
 
         if progress is not None:
             progress(len(eindeutig), len(eindeutig), "")
-        return ergebnis
+        return result
 
     def get_news(
         self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False

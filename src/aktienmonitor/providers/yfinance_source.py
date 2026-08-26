@@ -60,10 +60,10 @@ class YFinanceSource:
     # --- interne Helfer ------------------------------------------------------
 
     @staticmethod
-    def _ticker(symbol: str):
+    def _ticker(marker: str):
         import yfinance as yf
 
-        return yf.Ticker(symbol)
+        return yf.Ticker(marker)
 
     @staticmethod
     def _safe(getter, default: Any = None) -> Any:

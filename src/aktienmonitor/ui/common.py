@@ -117,7 +117,7 @@ def _universe_sector_data(tickers: tuple[str, ...]) -> list[tuple[str | None, di
     was bereits geholt wurde; die Aktualisierung ist ein eigener Schritt.
     """
     service = get_service()
-    ergebnis: list[tuple[str | None, dict]] = []
+    result: list[tuple[str | None, dict]] = []
     for ticker in tickers:
         snapshot = service.get_snapshot(ticker, cache_only=True)
         if not snapshot.fundamental.available:
@@ -125,8 +125,8 @@ def _universe_sector_data(tickers: tuple[str, ...]) -> list[tuple[str | None, di
         # Nur Werte weiterreichen - MetricSet ist fuer den Streamlit-Cache
         # unnoetig schwer.
         werte = {m.key: m.value for m in snapshot.fundamental.available if m.value is not None}
-        ergebnis.append((snapshot.profile.sector, werte))
-    return ergebnis
+        result.append((snapshot.profile.sector, werte))
+    return result
 
 
 def get_sector_statistics(
@@ -135,19 +135,19 @@ def get_sector_statistics(
     """Baut die Sektorstatistik aus den zwischengespeicherten Daten des Universums."""
     if not tickers:
         return None
-    schwelle = min_peers if min_peers is not None else int(
+    threshold = min_peers if min_peers is not None else int(
         get_settings().get(MIN_PEERS_SETTING_KEY, DEFAULT_MIN_PEERS)
     )
     rohdaten = _universe_sector_data(tuple(sorted(tickers)))
     if not rohdaten:
         return None
 
-    statistik = SectorStatistics(min_peers=schwelle)
+    statistics = SectorStatistics(min_peers=threshold)
     for sector, werte in rohdaten:
-        eimer = statistik.values.setdefault(sector or "Ohne Branchenangabe", {})
+        eimer = statistics.values.setdefault(sector or "Ohne Branchenangabe", {})
         for key, value in werte.items():
             eimer.setdefault(key, []).append(float(value))
-    return statistik
+    return statistics
 
 
 def clear_sector_cache() -> None:
@@ -157,10 +157,10 @@ def clear_sector_cache() -> None:
 
 def get_score_weights() -> dict[str, float]:
     """Gespeicherte Gewichtung der Teilscores, sonst die Voreinstellung."""
-    gespeichert = get_settings().get(WEIGHTS_SETTING_KEY, None)
-    gewichte = dict(DEFAULT_WEIGHTS)
-    if isinstance(gespeichert, dict):
-        gewichte.update(
-            {k: float(v) for k, v in gespeichert.items() if k in DEFAULT_WEIGHTS}
+    stored = get_settings().get(WEIGHTS_SETTING_KEY, None)
+    weights = dict(DEFAULT_WEIGHTS)
+    if isinstance(stored, dict):
+        weights.update(
+            {k: float(v) for k, v in stored.items() if k in DEFAULT_WEIGHTS}
         )
-    return gewichte
+    return weights

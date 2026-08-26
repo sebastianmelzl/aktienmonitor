@@ -23,59 +23,59 @@ page_header("Vergleich", "Zwei bis fuenf Titel nebeneinander")
 
 watchlist = get_watchlist()
 service = get_service()
-eintraege = watchlist.all()
+entries = watchlist.all()
 
-if len(eintraege) < MIN_TITEL:
+if len(entries) < MIN_TITEL:
     st.info(
         f"Fuer einen Vergleich werden mindestens {MIN_TITEL} Titel benoetigt. "
         "Bitte unter **Watchlist** weitere aufnehmen."
     )
     st.stop()
 
-auswahl = st.multiselect(
+selection = st.multiselect(
     "Titel auswaehlen",
-    options=[e.ticker for e in eintraege],
+    options=[e.ticker for e in entries],
     max_selections=MAX_TITEL,
     format_func=lambda t: next(
         (f"{e.ticker} – {e.display_name}" if e.display_name else e.ticker
-         for e in eintraege if e.ticker == t),
+         for e in entries if e.ticker == t),
         t,
     ),
     help=f"Zwischen {MIN_TITEL} und {MAX_TITEL} Titeln.",
 )
 
-if len(auswahl) < MIN_TITEL:
+if len(selection) < MIN_TITEL:
     st.info(f"Bitte mindestens {MIN_TITEL} Titel auswaehlen.")
     st.stop()
 
 # Vergleich arbeitet auf dem vorhandenen Datenstand - aktualisiert wird auf der
 # Uebersichtsseite oder in der Detailansicht.
-snapshots = service.get_snapshots(auswahl, cache_only=True)
-fehlend = [t for t, s in snapshots.items() if not s.has_any_data]
-if fehlend:
+snapshots = service.get_snapshots(selection, cache_only=True)
+missing_data = [t for t, s in snapshots.items() if not s.has_any_data]
+if missing_data:
     st.warning(
-        f"Fuer {', '.join(fehlend)} liegen keine zwischengespeicherten Daten vor. "
+        f"Fuer {', '.join(missing_data)} liegen keine zwischengespeicherten Daten vor. "
         "Bitte in der **Uebersicht** einmal aktualisieren."
     )
 
-statistik = get_sector_statistics(watchlist.tickers())
-gewichte = get_score_weights()
-bewertungen = {t: score_snapshot(s, statistics=statistik, weights=gewichte)
+statistics = get_sector_statistics(watchlist.tickers())
+weights = get_score_weights()
+scored_by_ticker = {t: score_snapshot(s, statistics=statistics, weights=weights)
                for t, s in snapshots.items()}
 
 # --- Kopfzeile: Kurs und Scores ----------------------------------------------
 st.subheader("Auf einen Blick")
-spalten = st.columns(len(auswahl))
-for spalte, kuerzel in zip(spalten, auswahl, strict=False):
+columns = st.columns(len(selection))
+for column, kuerzel in zip(columns, selection, strict=False):
     snapshot = snapshots[kuerzel]
-    bewertung = bewertungen[kuerzel]
-    with spalte:
+    scored = scored_by_ticker[kuerzel]
+    with column:
         st.markdown(f"### {kuerzel}")
         st.caption(snapshot.profile.name or "")
         st.caption(snapshot.profile.sector or "Sektor unbekannt")
         st.metric(
             "Gesamtscore",
-            f"{bewertung.total:.0f}" if bewertung.is_available else NOT_AVAILABLE,
+            f"{scored.total:.0f}" if scored.is_available else NOT_AVAILABLE,
         )
         st.metric(
             "Kurs",
@@ -83,33 +83,33 @@ for spalte, kuerzel in zip(spalten, auswahl, strict=False):
         )
 
 st.subheader("Teilscores")
-score_tabelle = pd.DataFrame(
+score_table = pd.DataFrame(
     [
         {
-            "Teilscore": bewertungen[auswahl[0]].categories[name].label,
+            "Teilscore": scored_by_ticker[selection[0]].categories[name].label,
             **{
                 kuerzel: (
-                    round(bewertungen[kuerzel].categories[name].score, 1)
-                    if bewertungen[kuerzel].categories[name].is_available
+                    round(scored_by_ticker[kuerzel].categories[name].score, 1)
+                    if scored_by_ticker[kuerzel].categories[name].is_available
                     else None
                 )
-                for kuerzel in auswahl
+                for kuerzel in selection
             },
             "Abdeckung": " / ".join(
-                f"{bewertungen[k].categories[name].used_count}"
-                f"-{bewertungen[k].categories[name].total_count}"
-                for k in auswahl
+                f"{scored_by_ticker[k].categories[name].used_count}"
+                f"-{scored_by_ticker[k].categories[name].total_count}"
+                for k in selection
             ),
         }
         for name in ("fundamental", "technical", "analyst", "sentiment")
     ]
 )
 st.dataframe(
-    score_tabelle,
+    score_table,
     width="stretch",
     hide_index=True,
     column_config={
-        kuerzel: st.column_config.NumberColumn(format="%.0f") for kuerzel in auswahl
+        kuerzel: st.column_config.NumberColumn(format="%.0f") for kuerzel in selection
     },
 )
 st.caption(
@@ -128,26 +128,26 @@ st.caption(
 tabs = st.tabs(["Fundamental", "Technik", "Analysten"])
 for tab, bereich in zip(tabs, ("fundamental", "technical", "analyst"), strict=False):
     with tab:
-        ticker, zeilen = build_comparison_matrix(snapshots, bereich)
-        if not zeilen:
+        ticker, rows = build_comparison_matrix(snapshots, bereich)
+        if not rows:
             st.info("Keine Kennzahlen vorhanden.")
             continue
 
-        waehrungen = {k: snapshots[k].currency for k in ticker}
-        tabelle = []
-        for zeile in zeilen:
-            eintrag = {"Kennzahl": zeile["label"]}
+        currencies = {k: snapshots[k].currency for k in ticker}
+        table = []
+        for row in rows:
+            entry = {"Kennzahl": row["label"]}
             quelle = ""
             for kuerzel in ticker:
-                metric = zeile.get(kuerzel)
-                eintrag[kuerzel] = (
-                    format_metric(metric, waehrungen[kuerzel])
+                metric = row.get(kuerzel)
+                entry[kuerzel] = (
+                    format_metric(metric, currencies[kuerzel])
                     if metric is not None
                     else NOT_AVAILABLE
                 )
                 if not quelle and metric is not None and metric.is_available:
                     quelle = metric.source_label
-            eintrag["Quelle"] = quelle or "-"
-            tabelle.append(eintrag)
+            entry["Quelle"] = quelle or "-"
+            table.append(entry)
 
-        st.dataframe(pd.DataFrame(tabelle), width="stretch", hide_index=True)
+        st.dataframe(pd.DataFrame(table), width="stretch", hide_index=True)

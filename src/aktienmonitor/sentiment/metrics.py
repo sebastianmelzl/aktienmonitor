@@ -68,13 +68,13 @@ def compute_sentiment_metrics(
                 as_of=stamp, is_computed=True, inputs=inputs,
             )
 
-    eingeordnet = [i for i in items if getattr(i, "sentiment", None)]
+    classified = [i for i in items if getattr(i, "sentiment", None)]
     if not items:
-        grund = MISSING_NO_NEWS
-    elif not key_available and not eingeordnet:
-        grund = unavailable_reason or MISSING_NOT_CLASSIFIED
+        reason = MISSING_NO_NEWS
+    elif not key_available and not classified:
+        reason = unavailable_reason or MISSING_NOT_CLASSIFIED
     else:
-        grund = MISSING_TOO_FEW
+        reason = MISSING_TOO_FEW
 
     metrics["news_count"] = MetricValue(
         key="news_count", label="Gefundene Meldungen", value=float(len(items)),
@@ -83,40 +83,40 @@ def compute_sentiment_metrics(
     )
     metrics["sentiment_classified_count"] = MetricValue(
         key="sentiment_classified_count", label="Davon eingeordnet",
-        value=float(len(eingeordnet)), unit=UNIT_COUNT, source=quelle, as_of=stamp,
+        value=float(len(classified)), unit=UNIT_COUNT, source=quelle, as_of=stamp,
         is_computed=True, inputs=("Schlagzeilen",),
     )
 
-    if len(eingeordnet) < MIN_CLASSIFIED:
+    if len(classified) < MIN_CLASSIFIED:
         for key, label in (
             ("sentiment_balance", "Stimmungssaldo"),
             ("sentiment_balance_7d", f"Stimmungssaldo ({RECENT_DAYS} Tage)"),
             ("sentiment_positive_share", "Anteil positiver Meldungen"),
         ):
-            add(key, label, None, reason=grund)
+            add(key, label, None, reason=reason)
         return MetricSet(metrics)
 
-    positiv = sum(1 for i in eingeordnet if i.sentiment == SentimentLabel.POSITIVE)
-    negativ = sum(1 for i in eingeordnet if i.sentiment == SentimentLabel.NEGATIVE)
+    positive_count = sum(1 for i in classified if i.sentiment == SentimentLabel.POSITIVE)
+    negative_count = sum(1 for i in classified if i.sentiment == SentimentLabel.NEGATIVE)
 
     add(
         "sentiment_balance", "Stimmungssaldo",
-        _balance(positiv, negativ, len(eingeordnet)), reason=grund,
+        _balance(positive_count, negative_count, len(classified)), reason=reason,
     )
     add(
         "sentiment_positive_share", "Anteil positiver Meldungen",
-        positiv / len(eingeordnet) * 100.0, reason=grund,
+        positive_count / len(classified) * 100.0, reason=reason,
     )
 
-    grenze = stamp - timedelta(days=RECENT_DAYS)
-    aktuell = [i for i in eingeordnet if _as_aware(i.published_at) >= grenze]
+    cutoff = stamp - timedelta(days=RECENT_DAYS)
+    recent = [i for i in classified if _as_aware(i.published_at) >= cutoff]
     add(
         "sentiment_balance_7d", f"Stimmungssaldo ({RECENT_DAYS} Tage)",
         _balance(
-            sum(1 for i in aktuell if i.sentiment == SentimentLabel.POSITIVE),
-            sum(1 for i in aktuell if i.sentiment == SentimentLabel.NEGATIVE),
-            len(aktuell),
-        ) if len(aktuell) >= MIN_CLASSIFIED else None,
+            sum(1 for i in recent if i.sentiment == SentimentLabel.POSITIVE),
+            sum(1 for i in recent if i.sentiment == SentimentLabel.NEGATIVE),
+            len(recent),
+        ) if len(recent) >= MIN_CLASSIFIED else None,
         reason=f"Weniger als {MIN_CLASSIFIED} Meldungen in den letzten {RECENT_DAYS} Tagen",
     )
     return MetricSet(metrics)

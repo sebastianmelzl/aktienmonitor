@@ -42,11 +42,11 @@ if st.button("Check jetzt ausfuehren", type="primary"):
         checker.run()
     st.success("Pruefung abgeschlossen.")
 
-ergebnisse = checker.stored()
-if not ergebnisse:
+results = checker.stored()
+if not results:
     st.info("Es liegt noch kein Pruefergebnis vor. Bitte den Check einmal ausfuehren.")
 else:
-    tabelle = pd.DataFrame(
+    table = pd.DataFrame(
         [
             {
                 "": SYMBOLE.get(item.status, "⚠️"),
@@ -57,12 +57,12 @@ else:
                 "Geprueft": item.checked_at.strftime("%d.%m.%Y %H:%M"),
                 "Detail": (item.detail or "")[:160],
             }
-            for item in ergebnisse
+            for item in results
         ]
     )
-    st.dataframe(tabelle, width="stretch", hide_index=True)
+    st.dataframe(table, width="stretch", hide_index=True)
 
-    gesperrt = [i for i in ergebnisse if i.status == STATUS_FORBIDDEN]
+    gesperrt = [i for i in results if i.status == STATUS_FORBIDDEN]
     if gesperrt:
         st.warning(
             "Gesperrte Endpunkte:\n\n"
@@ -72,8 +72,8 @@ else:
 st.divider()
 
 st.subheader("Schluessel")
-spalte_finnhub, spalte_anthropic = st.columns(2)
-with spalte_finnhub:
+col_finnhub, col_anthropic = st.columns(2)
+with col_finnhub:
     if config.has_finnhub:
         st.success("Finnhub-Schluessel ist hinterlegt.")
     else:
@@ -82,7 +82,7 @@ with spalte_finnhub:
             "https://finnhub.io/register erhaeltlich und in der `.env` unter "
             "`FINNHUB_API_KEY` eintragen."
         )
-with spalte_anthropic:
+with col_anthropic:
     if config.has_anthropic:
         st.success("Anthropic-Schluessel ist hinterlegt - Schlagzeilen werden eingeordnet.")
     else:
@@ -95,19 +95,19 @@ st.divider()
 
 st.subheader("Zugriffsprotokoll")
 zusammenfassung = service.call_log.summary()
-spalte_gesamt, spalte_cache, spalte_fehler = st.columns(3)
-spalte_gesamt.metric("Zugriffe (24 Std.)", zusammenfassung["total"])
+col_total, col_cache, col_errors = st.columns(3)
+col_total.metric("Zugriffe (24 Std.)", zusammenfassung["total"])
 quote = (
     round(zusammenfassung["cache_hits"] / zusammenfassung["total"] * 100)
     if zusammenfassung["total"]
     else 0
 )
-spalte_cache.metric("Cache-Trefferquote", f"{quote} %")
-spalte_fehler.metric("Fehlgeschlagen", zusammenfassung["errors"])
+col_cache.metric("Cache-Trefferquote", f"{quote} %")
+col_errors.metric("Fehlgeschlagen", zusammenfassung["errors"])
 
-eintraege = service.call_log.recent(200)
-if eintraege:
-    protokoll = pd.DataFrame(eintraege)
+entries = service.call_log.recent(200)
+if entries:
+    protokoll = pd.DataFrame(entries)
     protokoll["cache_hit"] = protokoll["cache_hit"].map({1: "Cache", 0: "Live"})
     protokoll = protokoll.rename(
         columns={
@@ -123,10 +123,10 @@ else:
 st.divider()
 
 st.subheader("Cache")
-statistik = service.cache.stats()
-if statistik:
+statistics = service.cache.stats()
+if statistics:
     st.dataframe(
-        pd.DataFrame(statistik).rename(
+        pd.DataFrame(statistics).rename(
             columns={"data_kind": "Datenart", "source": "Quelle", "n": "Eintraege",
                      "oldest": "Aeltester Abruf"}
         ),
@@ -135,10 +135,10 @@ if statistik:
 else:
     st.info("Der Cache ist leer.")
 
-spalte_aufraeumen, spalte_leeren = st.columns(2)
-if spalte_aufraeumen.button("Abgelaufene Eintraege entfernen"):
+col_purge, col_clear = st.columns(2)
+if col_purge.button("Abgelaufene Eintraege entfernen"):
     st.success(f"{service.cache.purge_expired()} abgelaufene Eintraege entfernt.")
     st.rerun()
-if spalte_leeren.button("Cache vollstaendig leeren"):
+if col_clear.button("Cache vollstaendig leeren"):
     st.success(f"{service.cache.clear()} Eintraege entfernt.")
     st.rerun()
