@@ -1,0 +1,178 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Sprachkonvention
+
+Oberfläche, Kommentare und Docstrings sind **deutsch**. Bezeichner im Code sind
+**englisch**. Beides wurde bewusst so festgelegt — nicht angleichen.
+
+Umlaute werden in Quelldateien als `ae/oe/ue/ss` geschrieben (`Kennzahlen fuer
+...`), in der Oberfläche und in Markdown-Dateien dagegen normal (`für`).
+
+## Befehle
+
+```bash
+./start.sh                 # richtet beim ersten Lauf alles ein und startet
+./start.sh 8502            # anderer Port
+
+.venv/bin/python -m pytest                          # alle Tests (ohne Netz)
+.venv/bin/python -m pytest tests/test_scoring.py    # eine Datei
+.venv/bin/python -m pytest -k "perzentil"           # nach Namen filtern
+.venv/bin/python -m pytest tests/test_pages.py -q   # nur die Seitendurchläufe
+.venv/bin/ruff check . --fix                        # Linting
+```
+
+Manuelles Setup ohne `start.sh`: `python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`.
+
+## Die zentrale Regel: keine erfundenen Daten
+
+Das ist die wichtigste Eigenschaft dieses Projekts und technisch durchgesetzt,
+nicht nur dokumentiert. Wer hier Code ändert, muss sie kennen:
+
+- **`MetricValue` (`models.py`) ist der einzige Träger für Kennzahlen.** Ein
+  fehlender Wert ist dort ein expliziter Zustand mit `missing_reason` — niemals
+  `0.0`, niemals `NaN`, niemals ein Schätzwert.
+- `__post_init__` wandelt `NaN` und `Inf` automatisch in „fehlend" um.
+- `0.0` ist ein **gültiger Wert**. Deshalb nutzt der Code `_pick`/`_first` statt
+  `or` für Quellen-Rückfallebenen (`metrics/fundamental.py`) — ein `or` würde
+  eine Marge von exakt null als fehlend behandeln und still auf die falsche
+  Quelle ausweichen.
+- Nicht berechenbar heißt **kein Wert**: Wachstumsrate aus einem Verlust heraus,
+  Division durch null, Perzentil ohne Vergleichsgruppe, Stimmungssaldo aus
+  weniger als drei Meldungen.
+- Abgeleitete Kennzahlen tragen `is_computed=True` und führen ihre
+  Eingangsgrößen in `inputs` mit.
+
+Beim Erweitern gilt: lieber eine Kennzahl weglassen als sie zu raten.
+
+## Schichten
+
+`metrics/` und `scoring/` importieren **nie** aus `providers/` oder `ui/`. Sie
+nehmen einfache Datenstrukturen entgegen und geben `MetricValue` zurück. Das ist
+der Grund, warum das gesamte Rechenwerk ohne Netz und ohne Oberfläche testbar
+ist — diese Trennung bitte nicht aufweichen.
+
+```
+app.py            Navigation (st.navigation) + Zugangsschutz
+views/            Seiten — nur Darstellung, kein Rechenkram
+src/aktienmonitor/
+  models.py       MetricValue, MetricSet, NewsItem, SecurityProfile
+  config.py       Konfiguration aus .env
+  providers/      Datenabruf
+  metrics/        Kennzahlen (netzfrei, UI-frei)
+  scoring/        Bewertung (netzfrei, UI-frei)
+  sentiment/      Schlagzeilen-Einordnung
+  storage/        SQLite: Schema, Cache, Watchlist, Einstellungen
+  ui/             Formatierung, Charts, Tabellenlogik, Zugang
+```
+
+## Datenabruf
+
+**`ProviderRuntime.fetch` (`providers/base.py`) ist der einzige Weg nach
+draußen.** Jeder Abruf durchläuft dort dieselbe Kette: Cache → Token-Bucket →
+Wiederholversuche mit Backoff → Protokollierung. Neue Endpunkte gehen durch
+diese Methode, nicht daran vorbei.
+
+Besonderheiten, die man kennen muss:
+
+- **`cache_only=True`** unterdrückt jeden Netzzugriff und liefert auch
+  abgelaufene Stände. Die Übersicht und der Sektorvergleich laufen ausschließlich
+  so — sonst würde jede Filteränderung bei 50 Titeln Hunderte Abrufe auslösen.
+  Neue Daten kommen nur über den Aktualisieren-Knopf.
+- **Abgelaufener Cache als Rückfallebene:** Schlägt ein Live-Abruf fehl, wird der
+  alte Stand geliefert und über `age_seconds` als alt ausgewiesen.
+- **`AccessForbidden` (HTTP 403) wird nicht wiederholt** — ein im Free-Tier
+  gesperrter Endpunkt wird durch Warten nicht frei.
+
+**yfinance ist die Hauptquelle, Finnhub ergänzt.** Der Finnhub-Free-Tier deckt
+weder Kurshistorie noch nicht-US-Titel ab. `providers/capabilities.py` prüft zur
+Laufzeit, was der Schlüssel des Nutzers wirklich kann, statt es zu behaupten.
+
+Yahoo benennt Bilanzpositionen nicht einheitlich. `metrics/statements.py` arbeitet
+deshalb mit Aliaslisten (exakt → normalisiert → Teilstring) und gibt `None`
+zurück, wenn keine Bezeichnung passt.
+
+## Scoring
+
+Vier Teilscores 0–100, gewichtet zum Gesamtscore. Drei Bewertungsarten in
+`scoring/rules.py`:
+
+- **absolut** — Stützstellen mit linearer Interpolation. Die Punktefolge darf
+  fallen, damit Kennzahlen mit günstigem Mittelbereich abbildbar sind
+  (Ausschüttungsquote, RSI).
+- **sektorrelativ** — Perzentilrang innerhalb der Branche, für alle
+  Bewertungskennzahlen und Margen.
+- **kategorial** — Textwerte wie das SMA-Kreuzungssignal.
+
+Zwei Mechanismen, die man beim Ändern nicht kaputt machen darf:
+
+- **Normierung auf verfügbare Kennzahlen.** Eine fehlende Kennzahl fällt aus
+  Zähler *und* Nenner heraus, geht also nicht mit null Punkten ein. Die Abdeckung
+  wird nach Anzahl und Gewicht ausgewiesen.
+- **Gewichtsumverteilung.** Ein nicht berechenbarer Teilscore bekommt Gewicht
+  null, die übrigen werden proportional hochskaliert.
+
+**Die Vergleichsgruppe des Sektorvergleichs ist das eigene Universum**, nicht der
+Markt — für echte Sektor-Mediane gibt es keine kostenlose Quelle. Unter drei
+Titeln derselben Branche wird gar nicht bewertet. Das ist Absicht und in der
+Oberfläche benannt.
+
+Neue Regeln brauchen zwingend ein `rationale`; es wird in der Oberfläche
+angezeigt und ist im Regelwerkstest eingefordert.
+
+## Sentiment
+
+`sentiment/classifier.py` ordnet Schlagzeilen über die Anthropic-API ein
+(`output_config.format` als JSON-Schema, `effort: low`). Vorgabemodell
+`claude-opus-5`, über `ANTHROPIC_MODEL` änderbar.
+
+**Jede Einordnung wird je Schlagzeile dauerhaft zwischengespeichert** — Folgeläufe
+kosten nichts, und `cache_only` kommt ganz ohne API-Aufruf aus.
+
+Kein Pfad darf zu einem geratenen Wert führen: fehlendes Urteil, ungültiges JSON,
+unbekanntes Label, Index außerhalb des Bündels und Ablehnungen lassen die Meldung
+**unbewertet** statt sie auf „neutral" zu setzen. `available` prüft Schlüssel
+**und** installiertes Paket.
+
+## Tests
+
+338 Tests, alle ohne Netzzugriff. Jeder rechnet gegen handgerechnete Werte; die
+Herleitung steht als Kommentar am Test — bei Änderungen bitte beibehalten.
+
+`tests/test_pages.py` führt jede Seite mit Streamlits eigenem Testläufer
+(`AppTest`) gegen eine temporäre Datenbank mit synthetischen Titeln aus. Die
+Fixture `seeded_app` liegt in `tests/conftest.py`. Diese Durchläufe fangen, was
+Unit-Tests nicht sehen: umbenannte Funktionen, fehlerhafte Spaltenkonfiguration,
+Tippfehler in einer Seite.
+
+Testticker heißen bewusst `TEST*`, damit sie nie mit echten Werten zu
+verwechseln sind.
+
+## Gehosteter Betrieb
+
+`ui/auth.py` **verweigert den Start**, wenn ein Hoster erkannt wird (`PORT` oder
+`RAILWAY_*` gesetzt) und `AKTIENMONITOR_APP_PASSWORD` leer ist — sonst könnte
+jeder mit der URL die hinterlegten API-Schlüssel verbrauchen. Lokal bleibt die
+App ohne Passwort nutzbar. `Dockerfile` und `railway.toml` sind vorbereitet;
+`/data` ist der Einhängepunkt für das persistente Volume.
+
+## Stand und offene Punkte
+
+Phasen 0–4 sind fertig (Datenabruf, Kennzahlen, Scoring, Übersicht, Sentiment).
+
+**Bisher wurde nie ein echter Datenabruf ausgeführt.** Die gesamte Entwicklung
+lief in einer Umgebung ohne Netzzugang zu Yahoo, Finnhub und der Anthropic-API.
+Alles ist gegen fixe Testdaten und synthetische Cache-Einträge geprüft. Ungeprüft
+sind damit vor allem:
+
+- ob die yfinance-Feldnamen bei echten Titeln so heißen wie die Aliaslisten
+  annehmen — bei **nicht-amerikanischen Titeln** der wahrscheinlichste
+  Stolperstein
+- welche Finnhub-Endpunkte der Schlüssel des Nutzers tatsächlich freigibt
+- ob `output_config.format` mit dem Sentiment-Schema die erwartete Antwort liefert
+- ob das Docker-Abbild baut (kein Docker-Daemon in der Entwicklungsumgebung)
+
+Erster sinnvoller Schritt lokal: **Seite „Datenquellen" → „Check jetzt
+ausführen"**. Sie ruft jeden Endpunkt einmal auf und schreibt fest, was
+funktioniert — das ist die Grundlage für alles Weitere.
