@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from ..config import Config, load_config
+from ..formatting import format_metric
 from ..logging_setup import setup_logging
 from ..models import MetricSet
 from ..providers.fetcher import StockDataService, StockSnapshot
@@ -14,7 +15,6 @@ from ..scoring.sector import DEFAULT_MIN_PEERS, SectorStatistics
 from ..storage.db import Database
 from ..storage.settings_store import SettingsStore
 from ..storage.watchlist import Watchlist
-from .format import format_metric
 
 DISCLAIMER = (
     "**Hinweis:** Dieses Werkzeug bereitet oeffentlich verfuegbare Daten auf und "

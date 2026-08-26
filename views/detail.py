@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from aktienmonitor.formatting import NOT_AVAILABLE, format_change, german_number
 from aktienmonitor.scoring.engine import score_snapshot
 from aktienmonitor.ui.charts import INDICATOR_OPTIONS, price_chart
 from aktienmonitor.ui.common import (
@@ -18,7 +19,6 @@ from aktienmonitor.ui.common import (
     page_header,
     render_freshness,
 )
-from aktienmonitor.ui.format import NOT_AVAILABLE, format_change, german_number
 from aktienmonitor.ui.scores import (
     render_breakdown,
     render_sector_note,

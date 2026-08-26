@@ -85,6 +85,29 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        2,
+        """
+        -- Verlauf der Scores. Traegt bei jedem Aktualisieren einen Stand je
+        -- Titel ein; daraus entsteht die Veraenderungserkennung.
+        CREATE TABLE IF NOT EXISTS score_history (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker                TEXT NOT NULL,
+            recorded_at           TEXT NOT NULL,
+            total                 REAL,
+            fundamental           REAL,
+            technical             REAL,
+            analyst               REAL,
+            sentiment             REAL,
+            coverage_fundamental  REAL,
+            price                 REAL,
+            ma_cross              TEXT,
+            revision_balance      REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_history_ticker_time
+            ON score_history (ticker, recorded_at DESC);
+        """,
+    ),
 ]
 
 _init_lock = threading.Lock()

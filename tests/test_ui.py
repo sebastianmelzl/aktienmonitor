@@ -8,6 +8,13 @@ from __future__ import annotations
 
 import pytest
 
+from aktienmonitor.formatting import (
+    NOT_AVAILABLE,
+    compact_currency,
+    format_change,
+    format_metric,
+    german_number,
+)
 from aktienmonitor.metrics.fundamental import compute_fundamental_metrics
 from aktienmonitor.metrics.technical import compute_technical_metrics
 from aktienmonitor.models import (
@@ -22,13 +29,6 @@ from aktienmonitor.models import (
 )
 from aktienmonitor.ui.charts import price_chart
 from aktienmonitor.ui.common import coverage_caption, metrics_table
-from aktienmonitor.ui.format import (
-    NOT_AVAILABLE,
-    compact_currency,
-    format_change,
-    format_metric,
-    german_number,
-)
 
 from .conftest import make_bars
 

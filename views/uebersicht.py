@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 import pandas as pd
 import streamlit as st
 
+from aktienmonitor.formatting import NOT_AVAILABLE, german_number
 from aktienmonitor.scoring.engine import score_snapshot
+from aktienmonitor.storage.history import entry_from
 from aktienmonitor.ui.common import (
     clear_sector_cache,
     get_config,
@@ -18,7 +20,6 @@ from aktienmonitor.ui.common import (
     get_watchlist,
     page_header,
 )
-from aktienmonitor.ui.format import NOT_AVAILABLE, german_number
 from aktienmonitor.ui.scores import weight_sliders
 from aktienmonitor.ui.table import (
     COLUMNS,
@@ -109,6 +110,14 @@ scored_by_ticker = {
     ticker_key: score_snapshot(snap, statistics=statistics, weights=weights)
     for ticker_key, snap in snapshots.items()
 }
+# Den Verlauf nur beim ausdruecklichen Aktualisieren fortschreiben - sonst
+# entstuende bei jedem Seitenaufbau ein neuer Eintrag und die
+# Veraenderungserkennung haette nie einen brauchbaren Vergleichsstand.
+if refresh_clicked:
+    service.history.record_many(
+        [entry_from(snapshots[t], scored_by_ticker[t]) for t in snapshots]
+    )
+
 rows = build_rows(snapshots, scored_by_ticker)
 
 without_data = [z["ticker"] for z in rows if z["note"] == "Keine Daten abrufbar"]

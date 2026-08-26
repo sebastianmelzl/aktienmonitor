@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from aktienmonitor.formatting import NOT_AVAILABLE, format_metric, german_number
 from aktienmonitor.scoring.engine import score_snapshot
 from aktienmonitor.ui.common import (
     get_score_weights,
@@ -13,7 +14,6 @@ from aktienmonitor.ui.common import (
     get_watchlist,
     page_header,
 )
-from aktienmonitor.ui.format import NOT_AVAILABLE, format_metric, german_number
 from aktienmonitor.ui.table import build_comparison_matrix
 
 MAX_TITEL = 5

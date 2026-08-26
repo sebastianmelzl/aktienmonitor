@@ -12,11 +12,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from ..formatting import NOT_AVAILABLE, format_metric, german_number
 from ..models import MetricSet
 from ..scoring.definitions import CATEGORY_LABELS, DEFAULT_WEIGHTS
 from ..scoring.engine import CategoryScore, TotalScore
 from ..scoring.sector import SectorStatistics
-from .format import NOT_AVAILABLE, format_metric, german_number
 
 WEIGHTS_SETTING_KEY = "score_weights"
 MIN_PEERS_SETTING_KEY = "sector_min_peers"

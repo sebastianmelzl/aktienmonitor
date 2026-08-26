@@ -35,7 +35,7 @@ class TestSeitenLaufen:
     @pytest.mark.parametrize(
         "seite",
         ["uebersicht.py", "watchlist.py", "detail.py", "vergleich.py",
-         "datenquellen.py", "einstellungen.py"],
+         "kandidaten.py", "anlagevorschlag.py", "datenquellen.py", "einstellungen.py"],
     )
     def test_seite_wirft_keine_ausnahme(self, seite):
         ergebnis = run_page(seite)
@@ -136,3 +136,73 @@ class TestSentimentInDerOberflaeche:
             # Vorab eingeordnet: Einordnung samt Begruendung liegt vor.
             assert meldung.sentiment in {"positiv", "neutral", "negativ"}
             assert meldung.sentiment_rationale
+
+
+@pytest.mark.usefixtures("seeded_app")
+class TestKandidatenseite:
+    def test_ohne_verlauf_wird_der_hinweis_gezeigt(self):
+        """Beim allerersten Lauf gibt es keinen Vergleichsstand."""
+        result = run_page("kandidaten.py")
+        assert not result.exception
+        meldungen = " ".join(w.value or "" for w in result.warning)
+        assert "keinen Verlauf" in meldungen
+
+    def test_verlauf_erzeugt_kandidaten(self, seeded_app):
+        """Mit zwei gespeicherten Staenden entsteht ein Vergleich.
+
+        ``previous()`` liefert bewusst den vorletzten Stand: der letzte
+        entspricht dem aktuellen Zustand, ein Vergleich damit waere immer null.
+        Mit nur einem Eintrag gibt es deshalb korrekterweise nichts zu melden.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        from aktienmonitor.config import load_config
+        from aktienmonitor.providers.fetcher import StockDataService
+        from aktienmonitor.storage.history import HistoryEntry
+
+        service = StockDataService(load_config())
+        jetzt = datetime.now(UTC)
+        # Aeltester Stand deutlich schlechter -> Score-Sprung nach oben
+        service.history.record(
+            HistoryEntry(
+                "TESTA", jetzt - timedelta(days=14), total=20.0,
+                fundamental=20.0, technical=20.0, analyst=20.0,
+                coverage_fundamental=50.0, price=50.0,
+            )
+        )
+        service.history.record(
+            HistoryEntry("TESTA", jetzt, total=75.0, fundamental=75.0, price=120.0)
+        )
+
+        result = run_page("kandidaten.py")
+        assert not result.exception
+        beschriftungen = " ".join(str(e.label) for e in result.expander)
+        assert "TESTA" in beschriftungen
+
+
+@pytest.mark.usefixtures("seeded_app")
+class TestAufteilungsseite:
+    def test_seite_rechnet_eine_aufteilung(self):
+        result = run_page("anlagevorschlag.py")
+        assert not result.exception
+        assert result.dataframe, "Es muss eine Aufteilungstabelle geben"
+
+        table = result.dataframe[0].value
+        for spalte in ("Ticker", "Anteil %", "Stueck", "Betrag"):
+            assert spalte in table.columns
+
+    def test_summe_uebersteigt_den_betrag_nicht(self):
+        result = run_page("anlagevorschlag.py")
+        table = result.dataframe[0].value
+        # Vorgabewert der Seite ist 10.000
+        assert table["Betrag"].sum() <= 10_000.0 + 0.01
+
+    def test_nur_ganze_stueckzahlen(self):
+        table = run_page("anlagevorschlag.py").dataframe[0].value
+        assert all(float(s).is_integer() for s in table["Stueck"])
+
+    def test_warnhinweis_ist_immer_sichtbar(self):
+        """Der Hinweis, dass dies keine Empfehlung ist, darf nie fehlen."""
+        result = run_page("anlagevorschlag.py")
+        meldungen = " ".join(w.value or "" for w in result.warning)
+        assert "keine Anlageempfehlung" in meldungen

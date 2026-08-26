@@ -24,11 +24,13 @@ from ..models import (
     ProviderResult,
     SecurityProfile,
 )
+from ..narrative.generator import NarrativeGenerator
 from ..sentiment.classifier import SentimentClassifier
 from ..sentiment.metrics import compute_sentiment_metrics
 from ..storage.cache import Cache
 from ..storage.call_log import CallLog
 from ..storage.db import Database
+from ..storage.history import ScoreHistory
 from .base import ProviderRuntime
 from .finnhub_source import FinnhubSource
 from .throttle import ThrottleRegistry
@@ -103,6 +105,7 @@ class StockDataService:
         self.db = db or Database(config.db_path)
         self.cache = Cache(self.db)
         self.call_log = CallLog(self.db)
+        self.history = ScoreHistory(self.db)
         self.runtime = ProviderRuntime(
             cache=self.cache,
             call_log=self.call_log,
@@ -113,6 +116,9 @@ class StockDataService:
         self.yfinance = YFinanceSource(self.runtime)
         self.finnhub = FinnhubSource(self.runtime, config.finnhub_api_key)
         self.classifier = SentimentClassifier(
+            config.anthropic_api_key, self.cache, model=config.anthropic_model
+        )
+        self.narrator = NarrativeGenerator(
             config.anthropic_api_key, self.cache, model=config.anthropic_model
         )
 

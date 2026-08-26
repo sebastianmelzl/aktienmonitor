@@ -63,6 +63,8 @@ src/aktienmonitor/
   metrics/        Kennzahlen (netzfrei, UI-frei)
   scoring/        Bewertung (netzfrei, UI-frei)
   sentiment/      Schlagzeilen-Einordnung
+  narrative/      Faktenblatt und textliche Begruendung je Kandidat
+  formatting.py   Zahlformatierung - bewusst auf Paketebene, nicht unter ui/
   storage/        SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/             Formatierung, Charts, Tabellenlogik, Zugang
 ```
@@ -120,6 +122,37 @@ Oberfläche benannt.
 
 Neue Regeln brauchen zwingend ein `rationale`; es wird in der Oberfläche
 angezeigt und ist im Regelwerkstest eingefordert.
+
+## Verlauf und Kandidaten
+
+`storage/history.py` schreibt bei **jedem Aktualisieren in der Uebersicht** einen
+Stand je Titel fort (Scores, Abdeckung, Kurs, SMA-Signal, Revisionssaldo).
+Nur dort - nicht bei jedem Seitenaufbau, sonst gaebe es nie einen brauchbaren
+Vergleichsstand.
+
+`ScoreHistory.previous()` liefert bewusst den **vorletzten** Stand mit
+Mindestabstand von sechs Stunden. Der letzte entspricht dem aktuellen Zustand;
+ein Vergleich damit waere immer null.
+
+`scoring/changes.py` leitet daraus Ereignisse ab (netzfrei, UI-frei). Ereignisse
+ohne Vergleichsstand - ein frisches Kreuzen der Durchschnitte - werden auch beim
+ersten Lauf gemeldet.
+
+## Aufteilungsrechner
+
+`scoring/allocation.py` verteilt einen Betrag nach vorgegebenen Regeln. Zwei
+Dinge, die man beim Aendern nicht verlieren darf:
+
+- **Unerfuellbare Deckel werden benannt, nicht still aufgeloest.** Positions- und
+  Branchengrenze koennen sich widersprechen (vier von sechs Titeln in einer
+  Branche). `_capacity` prueft das vorab, `_cap_violations` kontrolliert nach.
+- **Die Mindestabdeckung liegt bei 35 %, nicht hoeher.** Die sektorrelativen
+  Regeln machen rund 47 % der Fundamentalgewichtung aus und fallen ohne
+  Vergleichsgruppe weg - ohne Branchengruppen sind hoechstens etwa 53 %
+  erreichbar. Eine Schwelle von 50 % wuerde fast jeden Titel ausschliessen.
+
+Der Rechner beurteilt nichts. Er kennt weder Korrelationen noch die uebrige
+Vermoegenslage; das steht so auf der Seite.
 
 ## Sentiment
 

@@ -1,4 +1,8 @@
-"""Formatierung fuer die deutschsprachige Oberflaeche.
+"""Formatierung von Zahlen und Kennzahlen fuer die Ausgabe.
+
+Reine Textlogik ohne Abhaengigkeit zur Oberflaeche - deshalb liegt sie auf
+Paketebene und nicht unter ``ui/``. So koennen auch netzferne Module wie
+``narrative/`` sie nutzen, ohne die Abhaengigkeitsrichtung umzudrehen.
 
 Fehlende Werte erscheinen ausnahmslos als "n/a". Es gibt keinen Pfad, auf dem
 ein fehlender Wert als Zahl dargestellt wird.
@@ -6,7 +10,7 @@ ein fehlender Wert als Zahl dargestellt wird.
 
 from __future__ import annotations
 
-from ..models import (
+from .models import (
     UNIT_COUNT,
     UNIT_CURRENCY,
     UNIT_DATE,

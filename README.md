@@ -106,7 +106,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 338 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 419 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -129,7 +129,9 @@ views/                      Seiten der Oberfläche (kein Rechenkram)
   uebersicht.py             Der "Knopfdruck": Tabelle, Filter, CSV-Export
   watchlist.py              Universum verwalten, CSV-Import, Listen
   detail.py                 Chart, Kennzahlen, Score-Aufschlüsselung
+  kandidaten.py             Was sich seit dem letzten Stand bewegt hat
   vergleich.py              2-5 Titel nebeneinander
+  anlagevorschlag.py        Aufteilungsrechner für einen Betrag
   datenquellen.py           Verfügbarkeitsprüfung, Zugriffsprotokoll
   einstellungen.py          Gewichtung, Sektorvergleich, Cache
 src/aktienmonitor/
@@ -508,6 +510,53 @@ docker run --rm -p 8501:8501 \
   -v "$(pwd)/data:/data" \
   aktienmonitor
 ```
+
+## Kandidaten und Aufteilung
+
+### Kandidaten – was sich bewegt hat
+
+Bei jedem Aktualisieren in der Übersicht wird je Titel ein Stand gespeichert
+(Scores, Datenabdeckung, Kurs). Die Kandidatenseite vergleicht den aktuellen
+Stand mit dem vorletzten gespeicherten und meldet unter anderem: Gesamtscore um
+mindestens 8 Punkte verändert, Teilscore um mindestens 12 Punkte, Schwelle
+über- oder unterschritten, frisches Golden oder Death Cross, gedrehter
+Revisionssaldo, und den interessantesten Fall – **Kurs um mindestens 12 %
+gefallen, während der Fundamental-Teilscore nahezu unverändert blieb**.
+
+Der Verlauf muss anlaufen: beim ersten Aktualisieren gibt es noch keinen
+Vergleichsstand, ab dem zweiten wird es nützlich.
+
+Mit hinterlegtem Anthropic-Schlüssel lässt sich je Kandidat ein kurzer Text
+erzeugen. Er entsteht **ausschließlich aus einem Faktenblatt** der berechneten
+Zahlen – das Faktenblatt ist über „Faktenblatt ansehen" einsehbar. Das Modell
+darf kein Wissen über das Unternehmen einbringen, keine Kursprognose abgeben
+und keine Handelsbegriffe verwenden.
+
+### Aufteilung – ein Rechner, keine Empfehlung
+
+Die Seite verteilt einen Betrag nach Regeln, die vollständig sichtbar und
+einstellbar sind: Höchstanteil je Titel, Höchstanteil je Branche,
+Mindestbetrag je Position, Mindest-Datenabdeckung, Höchstzahl der Positionen.
+Ausgegeben werden ganze Stückzahlen zum zuletzt bekannten Kurs samt Restbetrag.
+
+Vier Dinge, die die Seite ausdrücklich benennt statt sie zu verstecken:
+
+- **Widersprüchliche Grenzen.** Positions- und Branchendeckel können zusammen
+  unerfüllbar sein – etwa bei vier von sechs Titeln in derselben Branche. Das
+  wird vorab gerechnet und als Konflikt gemeldet, nicht stillschweigend
+  aufgelöst.
+- **Klumpenrisiko.** Liegen alle Positionen in einer Branche, steht das da – die
+  Aufteilung kann das nicht auflösen, dafür müssten andere Branchen im
+  Universum sein.
+- **Währungen werden nicht umgerechnet.** Notieren Positionen in EUR und USD,
+  behandelt der Rechner sie wie dieselbe Einheit und sagt das.
+- **Jeder ausgeschlossene Titel wird mit Grund genannt.**
+
+Was der Rechner nicht kann: beurteilen, ob eine Anlage sinnvoll ist. Er kennt
+weder Korrelationen zwischen den Titeln noch Ihre übrige Vermögenslage, Ihren
+Anlagehorizont, Steuern oder Gebühren. Die zugrundeliegenden Scores beruhen auf
+Schwellen, die als Konvention gesetzt und **nicht auf Prognosekraft geprüft**
+wurden – dafür bräuchte es den Backtest, der ausdrücklich Nicht-Ziel ist.
 
 ## Bekannte Grenzen der Datenquellen
 
