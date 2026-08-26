@@ -1,0 +1,26 @@
+# Secrets - niemals committen
+.env
+
+# Lokale Datenbank und Logs
+/data/
+*.db
+*.db-journal
+*.db-wal
+/logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
