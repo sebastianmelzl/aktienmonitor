@@ -73,7 +73,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 335 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 338 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 

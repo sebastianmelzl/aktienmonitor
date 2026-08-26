@@ -26,7 +26,7 @@ RECENT_DAYS = 7
 
 MISSING_TOO_FEW = f"Weniger als {MIN_CLASSIFIED} eingeordnete Meldungen"
 MISSING_NO_NEWS = "Keine Meldungen gefunden"
-MISSING_NOT_CLASSIFIED = "Keine Einordnung verfuegbar (kein Anthropic-Schluessel)"
+MISSING_NOT_CLASSIFIED = "Keine Einordnung verfuegbar"
 
 
 def _balance(positive: int, negative: int, total: int) -> float | None:
@@ -37,9 +37,18 @@ def _balance(positive: int, negative: int, total: int) -> float | None:
 
 
 def compute_sentiment_metrics(
-    items: list, *, as_of: datetime | None = None, key_available: bool = True
+    items: list,
+    *,
+    as_of: datetime | None = None,
+    key_available: bool = True,
+    unavailable_reason: str | None = None,
 ) -> MetricSet:
-    """Berechnet die Sentiment-Kennzahlen aus einer Liste von ``NewsItem``."""
+    """Berechnet die Sentiment-Kennzahlen aus einer Liste von ``NewsItem``.
+
+    ``unavailable_reason`` benennt, warum keine Einordnung moeglich war - etwa
+    ein fehlender Schluessel oder ein nicht installiertes Paket. Der genaue
+    Grund ist hilfreicher als die pauschale Vermutung "kein Schluessel".
+    """
     stamp = as_of or datetime.now(UTC)
     quelle = Provenance.COMPUTED
     metrics: dict[str, MetricValue] = {}
@@ -60,11 +69,12 @@ def compute_sentiment_metrics(
             )
 
     eingeordnet = [i for i in items if getattr(i, "sentiment", None)]
-    grund = (
-        MISSING_NO_NEWS if not items
-        else MISSING_NOT_CLASSIFIED if not key_available and not eingeordnet
-        else MISSING_TOO_FEW
-    )
+    if not items:
+        grund = MISSING_NO_NEWS
+    elif not key_available and not eingeordnet:
+        grund = unavailable_reason or MISSING_NOT_CLASSIFIED
+    else:
+        grund = MISSING_TOO_FEW
 
     metrics["news_count"] = MetricValue(
         key="news_count", label="Gefundene Meldungen", value=float(len(items)),

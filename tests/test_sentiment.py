@@ -215,6 +215,41 @@ class TestCaching:
         assert all(i.sentiment is None for i in ergebnis)
 
 
+class TestFehlendesPaket:
+    """Regressionstest: Schluessel gesetzt, aber das SDK fehlt.
+
+    Dieser Fall trat beim Durchspielen der Setup-Anleitung auf und liess die
+    Detailansicht abstuerzen. Er darf nie wieder zu einer Ausnahme fuehren.
+    """
+
+    def test_ohne_paket_gilt_die_einordnung_als_nicht_verfuegbar(self, cache, monkeypatch):
+        monkeypatch.setattr(
+            "aktienmonitor.sentiment.classifier._anthropic_installed", lambda: False
+        )
+        classifier = SentimentClassifier("sk-ant-beispiel", cache)
+        assert not classifier.available
+        assert "anthropic" in classifier.unavailable_reason
+
+    def test_ohne_paket_kein_absturz(self, cache, monkeypatch):
+        monkeypatch.setattr(
+            "aktienmonitor.sentiment.classifier._anthropic_installed", lambda: False
+        )
+        ergebnis = SentimentClassifier("sk-ant-beispiel", cache).classify(news(3))
+        assert all(i.sentiment is None for i in ergebnis)
+
+    def test_grund_erscheint_in_den_kennzahlen(self, cache, monkeypatch):
+        monkeypatch.setattr(
+            "aktienmonitor.sentiment.classifier._anthropic_installed", lambda: False
+        )
+        classifier = SentimentClassifier("sk-ant-beispiel", cache)
+        metrics = compute_sentiment_metrics(
+            news(5),
+            key_available=classifier.available,
+            unavailable_reason=classifier.unavailable_reason,
+        )
+        assert "anthropic" in metrics["sentiment_balance"].missing_reason
+
+
 class TestOhneSchluessel:
     def test_ohne_schluessel_bleibt_alles_unbewertet(self, cache):
         classifier = SentimentClassifier(None, cache)

@@ -15,7 +15,7 @@ WORKDIR /app
 # pyproject.toml nicht aendert.
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
-RUN pip install --no-cache-dir -e ".[sentiment]"
+RUN pip install --no-cache-dir -e "."
 
 COPY app.py ./
 COPY views/ ./views/

@@ -14,6 +14,7 @@ Grundsaetze:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import logging
 from dataclasses import dataclass, replace
@@ -95,6 +96,11 @@ OUTPUT_SCHEMA: dict[str, Any] = {
 }
 
 
+def _anthropic_installed() -> bool:
+    """Prueft, ob das SDK vorhanden ist - ohne es zu importieren."""
+    return importlib.util.find_spec("anthropic") is not None
+
+
 def headline_key(item: NewsItem) -> str:
     """Stabiler Schluessel je Schlagzeile - unabhaengig vom Titel, zu dem sie gehoert."""
     roh = f"{item.headline}|{item.url}".encode()
@@ -130,7 +136,24 @@ class SentimentClassifier:
 
     @property
     def available(self) -> bool:
-        return bool(self.api_key) or self._client is not None
+        """Ob eine Einordnung tatsaechlich moeglich ist.
+
+        Ein hinterlegter Schluessel allein genuegt nicht - ohne das Paket
+        ``anthropic`` gibt es keinen Client. Beides zu pruefen verhindert, dass
+        die Oberflaeche eine Einordnung ankuendigt, die dann nicht kommt.
+        """
+        if self._client is not None:
+            return True
+        return bool(self.api_key) and _anthropic_installed()
+
+    @property
+    def unavailable_reason(self) -> str | None:
+        """Warum keine Einordnung moeglich ist - oder None, wenn sie es ist."""
+        if self.available:
+            return None
+        if not self.api_key:
+            return "Kein Anthropic-Schluessel hinterlegt (ANTHROPIC_API_KEY in .env)"
+        return "Paket 'anthropic' ist nicht installiert: uv pip install -e '.[dev]'"
 
     def _get_client(self) -> Any:
         if self._client is not None:
@@ -143,7 +166,7 @@ class SentimentClassifier:
             import anthropic
         except ImportError as exc:  # pragma: no cover - Installationsproblem
             raise SentimentUnavailable(
-                "Paket 'anthropic' ist nicht installiert: pip install -e '.[sentiment]'"
+                "Paket 'anthropic' ist nicht installiert: uv pip install -e '.[dev]'"
             ) from exc
         self._client = anthropic.Anthropic(api_key=self.api_key)
         return self._client
@@ -201,8 +224,6 @@ class SentimentClassifier:
             buendel = offen[start : start + BATCH_SIZE]
             try:
                 urteile = self._classify_batch([item for _, item in buendel])
-            except SentimentUnavailable:
-                raise
             except Exception as exc:  # noqa: BLE001 - ein Buendel darf den Rest nicht kippen
                 logger.warning("Sentiment-Buendel fehlgeschlagen: %s", exc)
                 continue

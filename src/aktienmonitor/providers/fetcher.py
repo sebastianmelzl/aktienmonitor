@@ -211,7 +211,11 @@ class StockDataService:
         # Schlagzeilen und deren Einordnung. Im Cache-Only-Betrieb entsteht dabei
         # weder ein Datenabruf noch ein API-Aufruf beim Sprachmodell.
         news: list[NewsItem] = []
-        sentiment = compute_sentiment_metrics([], key_available=self.classifier.available)
+        sentiment = compute_sentiment_metrics(
+            [],
+            key_available=self.classifier.available,
+            unavailable_reason=self.classifier.unavailable_reason,
+        )
         if with_news:
             news = self.get_news(
                 ticker, force_refresh=force_refresh, cache_only=cache_only
@@ -219,7 +223,9 @@ class StockDataService:
             if news:
                 news = self.classifier.classify(news, cache_only=cache_only)
             sentiment = compute_sentiment_metrics(
-                news, key_available=self.classifier.available
+                news,
+                key_available=self.classifier.available,
+                unavailable_reason=self.classifier.unavailable_reason,
             )
 
         return StockSnapshot(
