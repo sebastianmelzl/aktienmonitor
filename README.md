@@ -73,7 +73,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 250 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 290 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -82,11 +82,22 @@ Datenquelle testbar. Jeder Test arbeitet mit fixen, im Code stehenden Werten und
 prüft gegen handgerechnete Ergebnisse; die Herleitung steht jeweils als
 Kommentar am Test.
 
+`tests/test_pages.py` führt zusätzlich jede Seite mit Streamlits eigenem
+Testläufer gegen eine temporäre Datenbank mit synthetischen Titeln aus. Das
+fängt Fehler, die Unit-Tests nicht sehen – eine umbenannte Funktion oder eine
+fehlerhafte Spaltenkonfiguration fällt sonst erst im Browser auf.
+
 ## Aufbau
 
 ```
 app.py                      Einstiegspunkt und Navigation
 views/                      Seiten der Oberfläche (kein Rechenkram)
+  uebersicht.py             Der "Knopfdruck": Tabelle, Filter, CSV-Export
+  watchlist.py              Universum verwalten, CSV-Import, Listen
+  detail.py                 Chart, Kennzahlen, Score-Aufschlüsselung
+  vergleich.py              2-5 Titel nebeneinander
+  datenquellen.py           Verfügbarkeitsprüfung, Zugriffsprotokoll
+  einstellungen.py          Gewichtung, Sektorvergleich, Cache
 src/aktienmonitor/
   config.py                 Konfiguration aus .env
   models.py                 MetricValue & Co. – erzwingt "keine erfundenen Daten"
@@ -108,7 +119,7 @@ src/aktienmonitor/
     sector.py               Perzentilrang innerhalb der Branche
     engine.py               Teilscores, Gesamtscore, Beitrags-Aufschluesselung
   storage/                  SQLite: Schema, Cache, Watchlist, Einstellungen
-  ui/                       Formatierung, Charts, gemeinsame Bausteine
+  ui/                       Formatierung, Charts, Tabellenlogik, Score-Anzeige
 tests/                      Unit-Tests mit fixen Testdaten
 ```
 
@@ -312,6 +323,38 @@ Kennzahl: den Wert, die Bewertungsart, die erreichten Punkte, das Gewicht, den
 resultierenden Beitrag, die Datenquelle und – bei sektorrelativer Bewertung –
 Größe und Median der Vergleichsgruppe. Darunter stehen die nicht eingegangenen
 Kennzahlen mit Begründung sowie die Begründung jeder einzelnen Regel.
+
+## Bedienung
+
+### Übersicht – der Knopfdruck
+
+**Alle Werte aktualisieren** holt die Daten des gewählten Universums. Ohne den
+Haken *Cache verwerfen* werden nur Bereiche geholt, deren Lebensdauer abgelaufen
+ist – ein erneutes Aktualisieren kurz danach kostet daher fast nichts. Mit Haken
+wird alles neu geholt; das dauert bei 50 Titeln mehrere Minuten und belastet die
+Rate-Limits.
+
+Wichtig: **die Ansicht selbst ruft nie Daten ab.** Filter, Sortierung und
+Gewichtung arbeiten auf dem vorhandenen Stand, sonst würde jedes Verschieben
+eines Reglers einen Abruf auslösen. Neue Daten kommen ausschließlich über den
+Knopf.
+
+Filter gibt es für Gesamtscore, Sektor, Marktkapitalisierung, Dividendenrendite
+und KGV. Dabei wird ein Punkt getrennt ausgewiesen, der leicht untergeht: ein
+Titel, dessen gefilterte Kennzahl **fehlt**, ist nicht durch den Filter
+gefallen – er ist nicht prüfbar. Beide Gruppen werden getrennt gezählt und
+benannt, damit Titel nicht stillschweigend aus der Ansicht verschwinden.
+
+Der CSV-Export gibt es in zwei Varianten: deutsch (Semikolon, Dezimalkomma –
+öffnet in Excel direkt) und international (Komma, Dezimalpunkt). Fehlende Werte
+erscheinen als leeres Feld, nie als 0.
+
+### Vergleich
+
+Zwei bis fünf Titel nebeneinander, mit Teilscores, Datenabdeckung je Titel und
+den Kennzahlen als Matrix. Die Abdeckungsspalte ist hier besonders nützlich: ein
+hoher Score aus wenigen Kennzahlen ist weniger belastbar als derselbe Score aus
+vielen.
 
 ## Bekannte Grenzen der Datenquellen
 

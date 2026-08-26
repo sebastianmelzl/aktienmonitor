@@ -8,6 +8,7 @@ er aus dem Cache kam - diese Angaben zeigt die Oberflaeche an.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -213,6 +214,56 @@ class StockDataService:
             freshness=freshness,
             errors=errors,
         )
+
+    def get_snapshots(
+        self,
+        tickers: list[str],
+        *,
+        force_refresh: bool = False,
+        cache_only: bool = False,
+        history_period: str = "5y",
+        progress: Callable[[int, int, str], None] | None = None,
+    ) -> dict[str, StockSnapshot]:
+        """Holt die Daten mehrerer Titel nacheinander.
+
+        Ohne ``force_refresh`` wird die Cache-Lebensdauer beachtet: bereits
+        aktuelle Daten werden nicht erneut abgerufen. Das macht ein wiederholtes
+        Aktualisieren des Universums billig, weil nur wirklich veraltete Bereiche
+        neu geholt werden.
+
+        Die Abrufe laufen bewusst nacheinander - der Token-Bucket je Quelle
+        greift nur, wenn nicht parallel daran vorbei gearbeitet wird. Ein Fehler
+        bei einem Titel bricht den Lauf nicht ab; der betroffene Titel erhaelt
+        einen Snapshot ohne Daten und wird in der Oberflaeche als solcher
+        ausgewiesen.
+
+        ``progress`` wird vor jedem Titel mit (Index, Gesamtzahl, Ticker)
+        aufgerufen.
+        """
+        eindeutig = list(dict.fromkeys(t.upper() for t in tickers))
+        ergebnis: dict[str, StockSnapshot] = {}
+
+        for index, ticker in enumerate(eindeutig):
+            if progress is not None:
+                progress(index, len(eindeutig), ticker)
+            try:
+                ergebnis[ticker] = self.get_snapshot(
+                    ticker,
+                    force_refresh=force_refresh,
+                    cache_only=cache_only,
+                    history_period=history_period,
+                )
+            except Exception as exc:  # noqa: BLE001 - ein Titel darf den Lauf nicht kippen
+                logger.exception("Abruf fuer %s fehlgeschlagen", ticker)
+                ergebnis[ticker] = StockSnapshot(
+                    ticker=ticker,
+                    profile=SecurityProfile(ticker=ticker),
+                    errors=[f"Abruf fehlgeschlagen: {type(exc).__name__}: {exc}"],
+                )
+
+        if progress is not None:
+            progress(len(eindeutig), len(eindeutig), "")
+        return ergebnis
 
     def get_news(self, ticker: str, *, force_refresh: bool = False) -> list[NewsItem]:
         """Schlagzeilen eines Titels - immer mit Quelle und Link."""
