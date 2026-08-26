@@ -43,7 +43,7 @@ with col_left:
         |---|---|---|
         | 0 | Datenabruf, Cache, Rate-Limits, Quellen-Check | fertig |
         | 1 | Watchlist, Kennzahlen, Detailansicht | fertig |
-        | 2 | Scoring mit Sektorvergleich und Gewichtungs-Slidern | offen |
+        | 2 | Scoring mit Sektorvergleich und Gewichtungs-Slidern | fertig |
         | 3 | Uebersicht auf Knopfdruck, Filter, CSV-Export, Vergleich | offen |
         | 4 | News und Sentiment-Einordnung | offen |
         """

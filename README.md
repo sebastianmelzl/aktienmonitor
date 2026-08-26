@@ -73,7 +73,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 204 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 250 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -102,7 +102,11 @@ src/aktienmonitor/
     fundamental.py          Fundamentale Kennzahlen
     technical.py            Technische Indikatoren
     analyst.py              Analysten-Kennzahlen
-  scoring/                  Scoring (Phase 2)
+  scoring/                  Scoring - ohne Netz und ohne UI testbar
+    rules.py                Stuetzstellen-Interpolation, Regeltypen
+    definitions.py          Das Regelwerk: Kennzahl, Gewicht, Bewertungsart
+    sector.py               Perzentilrang innerhalb der Branche
+    engine.py               Teilscores, Gesamtscore, Beitrags-Aufschluesselung
   storage/                  SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/                       Formatierung, Charts, gemeinsame Bausteine
 tests/                      Unit-Tests mit fixen Testdaten
@@ -222,13 +226,92 @@ ein RSI über 5 statt 14 Tage wäre eine andere Kennzahl.
 
 ## Scoring
 
-Noch nicht umgesetzt – folgt in Phase 2. Geplant sind vier Teilscores
-(Fundamental, Technik, Analysten, Sentiment) von jeweils 0–100 und ein
-gewichteter Gesamtscore mit im UI verstellbaren Gewichten. Kennzahlen wie das
-KGV werden dabei nicht absolut bewertet, sondern als Perzentil gegenüber dem
-Sektor-Median – sonst gewinnen strukturell immer die niedrig bewerteten
-Branchen. Fehlende Kennzahlen normieren den Teilscore auf die verbleibenden und
-die Datenabdeckung wird in Prozent ausgewiesen.
+Vier Teilscores von jeweils 0–100 ergeben einen gewichteten Gesamtscore. Der
+Score ist eine **Aufbereitung, keine Einschätzung** – die Schwellen des
+Regelwerks sind eine Konvention, keine Wahrheit. Deshalb spricht die Oberfläche
+durchgehend von *Score*, *Signal* und *Kandidat*, nie von Kaufen oder Verkaufen.
+
+### Formel
+
+Jede Kennzahl wird über eine Regel in Punkte von 0 bis 100 übersetzt und geht
+mit ihrem Gewicht in den Teilscore ein:
+
+```
+Teilscore = Σ(Punkte_i × Gewicht_i) / Σ(Gewicht_i)      nur über verfügbare Kennzahlen
+```
+
+Der entscheidende Teil ist das *nur über verfügbare Kennzahlen*: eine fehlende
+Kennzahl geht **nicht mit null Punkten** ein, sondern fällt aus Zähler und
+Nenner heraus. Sie kann den Score also nicht nach unten ziehen. Stattdessen
+wird die Abdeckung ausgewiesen, etwa „Fundamental-Score: 76 – basiert auf 20
+von 20 Kennzahlen (100 % der Gewichtung)".
+
+Der Gesamtscore gewichtet die Teilscores:
+
+```
+Gesamtscore = Σ(Teilscore_k × Gewicht_k) / Σ(Gewicht_k)  nur über berechenbare Teilscores
+```
+
+Ein nicht berechenbarer Teilscore – derzeit immer *Sentiment*, das erst in
+Phase 4 kommt – erhält das Gewicht null, und die übrigen Gewichte werden
+proportional hochskaliert. Bei der Voreinstellung 40/25/25/10 wird ohne
+Sentiment also mit 44/28/28 gerechnet. Die Oberfläche nennt die umverteilten
+Bereiche ausdrücklich.
+
+**Voreinstellung der Gewichte:** Fundamental 40 %, Technik 25 %, Analysten
+25 %, Sentiment 10 %. Über Schieberegler in der Seitenleiste und unter
+*Einstellungen* veränderbar; nur die Verhältnisse zählen, intern wird auf 100 %
+normiert.
+
+### Drei Bewertungsarten
+
+| Art | Wann | Beispiel |
+|---|---|---|
+| **Sektor-Perzentil** | Kennzahl ist nur im Branchenvergleich aussagekräftig | KGV, KUV, KBV, EV/EBITDA, ROE, Margen |
+| **absolut** | Kennzahl hat einen branchenübergreifend sinnvollen Maßstab | ROIC, Eigenkapitalquote, Verschuldung/EBITDA, RSI, Momentum |
+| **kategorial** | Kennzahl ist Text | SMA-50/200-Signal |
+
+Bei der absoluten Bewertung wird zwischen hinterlegten Stützstellen linear
+interpoliert. Die Punktefolge muss nicht steigen – so lassen sich Kennzahlen
+mit günstigem Mittelbereich abbilden: die Ausschüttungsquote erreicht bei 50 %
+ihr Maximum und fällt darüber wieder ab, weil über 100 % aus der Substanz
+gezahlt wird. Auch der RSI ist so modelliert: Extremwerte in beide Richtungen
+geben weniger Punkte.
+
+### Sektorvergleich
+
+Ein absoluter KGV-Maßstab würde strukturell immer dieselben Branchen nach oben
+spülen – Banken handeln nun einmal niedriger als Softwarehäuser. Bewertet wird
+deshalb der Rang innerhalb der eigenen Branche:
+
+```
+Perzentil = (schlechtere + 0,5 × gleiche) / Anzahl × 100
+```
+
+100 heißt bester Wert der Vergleichsgruppe, 0 der schlechteste. Bei Kennzahlen,
+bei denen ein niedriger Wert besser ist (KGV), zählt ein höherer Wert als
+schlechter.
+
+**Wichtige Einschränkung:** Die Vergleichsgruppe ist das **eigene beobachtete
+Universum**, nicht der Gesamtmarkt – eine kostenlose Quelle für echte
+Sektor-Mediane gibt es nicht. Wer nur fünf Technologiewerte beobachtet,
+vergleicht gegen diese fünf. Bei weniger als drei Titeln derselben Branche
+(einstellbar) wird eine sektorrelative Kennzahl **gar nicht bewertet**, statt
+einen Rang aus zwei Titeln zu behaupten. Das senkt die ausgewiesene Abdeckung
+und ist beabsichtigt: ein einzelner Finanzwert in einer Tech-Watchlist bekommt
+für seine Bewertungskennzahlen keine Punkte, und die Oberfläche sagt das auch.
+
+Die Sektorstatistik wird ausschließlich aus bereits zwischengespeicherten Daten
+gebildet. Ohne diese Einschränkung würde ihr Aufbau bei 50 Titeln Hunderte
+Abrufe gegen die Rate-Limits auslösen.
+
+### Nachvollziehbarkeit
+
+Jeder Teilscore lässt sich in der Detailansicht aufklappen und zeigt dann pro
+Kennzahl: den Wert, die Bewertungsart, die erreichten Punkte, das Gewicht, den
+resultierenden Beitrag, die Datenquelle und – bei sektorrelativer Bewertung –
+Größe und Median der Vergleichsgruppe. Darunter stehen die nicht eingegangenen
+Kennzahlen mit Begründung sowie die Begründung jeder einzelnen Regel.
 
 ## Bekannte Grenzen der Datenquellen
 

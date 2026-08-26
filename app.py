@@ -18,6 +18,7 @@ navigation = st.navigation(
         st.Page("views/watchlist.py", title="Watchlist", icon="📋"),
         st.Page("views/detail.py", title="Detailansicht", icon="🔍"),
         st.Page("views/datenquellen.py", title="Datenquellen", icon="🔌"),
+        st.Page("views/einstellungen.py", title="Einstellungen", icon="⚙️"),
     ]
 )
 navigation.run()

@@ -112,9 +112,19 @@ class StockDataService:
     # --- oeffentliche Schnittstelle -----------------------------------------
 
     def get_snapshot(
-        self, ticker: str, *, force_refresh: bool = False, history_period: str = "5y"
+        self,
+        ticker: str,
+        *,
+        force_refresh: bool = False,
+        history_period: str = "5y",
+        cache_only: bool = False,
     ) -> StockSnapshot:
-        """Holt alle Daten eines Titels und berechnet die Kennzahlen."""
+        """Holt alle Daten eines Titels und berechnet die Kennzahlen.
+
+        Mit ``cache_only`` werden ausschliesslich bereits gespeicherte Daten
+        verwendet. Das ist die Betriebsart fuer den Sektorvergleich, der viele
+        Titel auf einmal braucht und dabei keine Abrufwelle ausloesen darf.
+        """
         ticker = ticker.upper()
         if force_refresh:
             self.cache.invalidate_ticker(ticker)
@@ -136,17 +146,27 @@ class StockDataService:
                 errors.append(f"{label}: {result.error}")
             return result.data if result.ok else None
 
-        info = track("Stammdaten", self.yfinance.profile(ticker, force_refresh=force_refresh)) or {}
-        quote = track("Kurs", self.yfinance.quote(ticker, force_refresh=force_refresh)) or {}
+        info = track(
+            "Stammdaten",
+            self.yfinance.profile(ticker, force_refresh=force_refresh, cache_only=cache_only),
+        ) or {}
+        quote = track(
+            "Kurs",
+            self.yfinance.quote(ticker, force_refresh=force_refresh, cache_only=cache_only),
+        ) or {}
         history = track(
             "Kurshistorie",
-            self.yfinance.price_history(ticker, period=history_period, force_refresh=force_refresh),
+            self.yfinance.price_history(
+                ticker, period=history_period, force_refresh=force_refresh, cache_only=cache_only
+            ),
         ) or {}
         statements = track(
-            "Abschluesse", self.yfinance.fundamentals(ticker, force_refresh=force_refresh)
+            "Abschluesse",
+            self.yfinance.fundamentals(ticker, force_refresh=force_refresh, cache_only=cache_only),
         )
         analyst_payload = track(
-            "Analysten", self.yfinance.analyst(ticker, force_refresh=force_refresh)
+            "Analysten",
+            self.yfinance.analyst(ticker, force_refresh=force_refresh, cache_only=cache_only),
         )
 
         profile = self._build_profile(ticker, info, quote)
@@ -156,7 +176,9 @@ class StockDataService:
         if self.finnhub.available:
             finnhub_data = track(
                 "Finnhub-Kennzahlen",
-                self.finnhub.basic_financials(ticker, force_refresh=force_refresh),
+                self.finnhub.basic_financials(
+                    ticker, force_refresh=force_refresh, cache_only=cache_only
+                ),
             )
             if isinstance(finnhub_data, dict):
                 finnhub_metric = finnhub_data.get("metric") or {}

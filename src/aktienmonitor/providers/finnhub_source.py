@@ -92,7 +92,9 @@ class FinnhubSource:
 
     # --- Endpunkte -----------------------------------------------------------
 
-    def quote(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def quote(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             data = self.request("/quote", {"symbol": ticker})
             # Finnhub liefert fuer unbekannte Symbole ein Objekt aus lauter Nullen.
@@ -111,20 +113,26 @@ class FinnhubSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/quote", ticker=ticker,
-            data_kind=DATA_KIND_QUOTE, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_QUOTE,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def profile(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def profile(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             data = self.request("/stock/profile2", {"symbol": ticker})
             return jsonable(data) if isinstance(data, dict) and data else None
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/stock/profile2",
-            ticker=ticker, data_kind=DATA_KIND_PROFILE, loader=load, force_refresh=force_refresh,
+            ticker=ticker, data_kind=DATA_KIND_PROFILE,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def basic_financials(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def basic_financials(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         """``/stock/metric`` - Sammelendpunkt mit vielen Kennzahlen in einem Aufruf."""
 
         def load() -> dict[str, Any] | None:
@@ -136,20 +144,25 @@ class FinnhubSource:
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/stock/metric",
             ticker=ticker, data_kind=DATA_KIND_FUNDAMENTALS, loader=load,
-            force_refresh=force_refresh,
+            force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def recommendations(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def recommendations(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> list[dict[str, Any]] | None:
             data = self.request("/stock/recommendation", {"symbol": ticker})
             return jsonable(data) if isinstance(data, list) and data else None
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/stock/recommendation",
-            ticker=ticker, data_kind=DATA_KIND_ANALYST, loader=load, force_refresh=force_refresh,
+            ticker=ticker, data_kind=DATA_KIND_ANALYST,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def price_target(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def price_target(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             data = self.request("/stock/price-target", {"symbol": ticker})
             if not isinstance(data, dict) or not data.get("targetMean"):
@@ -158,21 +171,25 @@ class FinnhubSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/stock/price-target",
-            ticker=ticker, data_kind=DATA_KIND_ANALYST, loader=load, force_refresh=force_refresh,
+            ticker=ticker, data_kind=DATA_KIND_ANALYST,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def earnings_surprises(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def earnings_surprises(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> list[dict[str, Any]] | None:
             data = self.request("/stock/earnings", {"symbol": ticker})
             return jsonable(data) if isinstance(data, list) and data else None
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/stock/earnings",
-            ticker=ticker, data_kind=DATA_KIND_ANALYST, loader=load, force_refresh=force_refresh,
+            ticker=ticker, data_kind=DATA_KIND_ANALYST,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
     def company_news(
-        self, ticker: str, *, days: int = 14, force_refresh: bool = False
+        self, ticker: str, *, days: int = 14, force_refresh: bool = False, cache_only: bool = False
     ) -> ProviderResult:
         def load() -> list[dict[str, Any]] | None:
             today = datetime.now(UTC).date()
@@ -188,6 +205,7 @@ class FinnhubSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="/company-news",
-            ticker=ticker, data_kind=DATA_KIND_NEWS, loader=load, cache_parts=(str(days),),
-            force_refresh=force_refresh,
+            ticker=ticker, data_kind=DATA_KIND_NEWS,
+            loader=load, cache_parts=(str(days),),
+            force_refresh=force_refresh, cache_only=cache_only,
         )

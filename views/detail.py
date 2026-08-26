@@ -4,16 +4,26 @@ from __future__ import annotations
 
 import streamlit as st
 
+from aktienmonitor.scoring.engine import score_snapshot
 from aktienmonitor.ui.charts import INDICATOR_OPTIONS, price_chart
 from aktienmonitor.ui.common import (
+    clear_sector_cache,
     coverage_caption,
+    get_sector_statistics,
     get_service,
+    get_settings,
     get_watchlist,
     metrics_table,
     page_header,
     render_freshness,
 )
 from aktienmonitor.ui.format import NOT_AVAILABLE, format_change, german_number
+from aktienmonitor.ui.scores import (
+    render_breakdown,
+    render_sector_note,
+    render_total_score,
+    weight_sliders,
+)
 
 page_header("Detailansicht", "Kennzahlen, Chart und Analystenbild eines Titels")
 
@@ -86,6 +96,34 @@ kpi_stand.metric(
 )
 
 render_freshness(snapshot)
+
+# --- Bewertung ---------------------------------------------------------------
+with st.sidebar:
+    st.subheader("Gewichtung")
+    st.caption(
+        "Bestimmt, wie stark die vier Teilscores in den Gesamtscore eingehen. "
+        "Die Einstellung gilt in der gesamten App."
+    )
+    gewichte = weight_sliders(get_settings(), key_prefix="detail_")
+    if st.button("Sektordaten neu aufbauen", width="stretch"):
+        clear_sector_cache()
+        st.rerun()
+
+st.subheader("Bewertung")
+st.caption(
+    "Der Score fasst Kennzahlen zu einer Vergleichsgroesse zusammen. Er ist eine "
+    "Aufbereitung, keine Einschaetzung des Titels - die Schwellen des Regelwerks sind "
+    "eine Konvention. Jeder Teilscore laesst sich unten bis zur einzelnen Kennzahl "
+    "aufklappen."
+)
+
+statistik = get_sector_statistics(watchlist.tickers())
+bewertung = score_snapshot(snapshot, statistics=statistik, weights=gewichte)
+render_total_score(bewertung)
+render_sector_note(statistik, snapshot.profile.sector)
+
+for teilscore in bewertung.categories.values():
+    render_breakdown(teilscore, snapshot.currency)
 
 # --- Chart -------------------------------------------------------------------
 st.subheader("Kursverlauf")

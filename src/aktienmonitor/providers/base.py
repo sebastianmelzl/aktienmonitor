@@ -117,11 +117,16 @@ class ProviderRuntime:
         cache_parts: tuple[str, ...] = (),
         force_refresh: bool = False,
         ttl_override: int | None = None,
+        cache_only: bool = False,
     ) -> ProviderResult:
         """Holt Daten - erst aus dem Cache, sonst von der Quelle.
 
         Schlaegt der Live-Abruf fehl, wird ein abgelaufener Cache-Eintrag als
         Rueckfallebene genutzt und ueber ``age_seconds`` als alt ausgewiesen.
+
+        Mit ``cache_only`` unterbleibt jeder Netzzugriff. Das wird gebraucht, wo
+        viele Titel auf einmal betrachtet werden (Sektorvergleich), ohne dass
+        ungewollt Dutzende Abrufe gegen das Rate-Limit laufen.
         """
         cache_key = build_key(source_key, endpoint, ticker, *cache_parts)
         ttl = ttl_override if ttl_override is not None else self.ttl_seconds.get(data_kind, 3600)
@@ -143,6 +148,26 @@ class ProviderRuntime:
                     from_cache=True,
                     age_seconds=entry.age_seconds,
                 )
+
+        if cache_only:
+            # Auch ein abgelaufener Stand ist hier brauchbar - er wird ueber
+            # ``age_seconds`` als alt ausgewiesen.
+            stale = self.cache.get(cache_key, allow_stale=True)
+            if stale is not None:
+                return ProviderResult(
+                    data=stale.payload,
+                    source=source,
+                    fetched_at=stale.fetched_at,
+                    from_cache=True,
+                    age_seconds=stale.age_seconds,
+                )
+            return ProviderResult(
+                data=None,
+                source=source,
+                fetched_at=datetime.now(UTC),
+                from_cache=False,
+                error="Nicht im Cache und kein Abruf angefordert",
+            )
 
         self.throttle.acquire(source_key)
         started = time.monotonic()

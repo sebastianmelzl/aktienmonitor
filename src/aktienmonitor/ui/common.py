@@ -9,6 +9,8 @@ from ..config import Config, load_config
 from ..logging_setup import setup_logging
 from ..models import MetricSet
 from ..providers.fetcher import StockDataService, StockSnapshot
+from ..scoring.definitions import DEFAULT_WEIGHTS
+from ..scoring.sector import DEFAULT_MIN_PEERS, SectorStatistics
 from ..storage.db import Database
 from ..storage.settings_store import SettingsStore
 from ..storage.watchlist import Watchlist
@@ -98,3 +100,67 @@ def coverage_caption(metrics: MetricSet, label: str) -> str:
     total = len(metrics)
     percent = round(metrics.coverage * 100)
     return f"{label}: {available} von {total} Kennzahlen verfuegbar ({percent} %)"
+
+
+# --- Sektorstatistik ---------------------------------------------------------
+
+WEIGHTS_SETTING_KEY = "score_weights"
+MIN_PEERS_SETTING_KEY = "sector_min_peers"
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _universe_sector_data(tickers: tuple[str, ...]) -> list[tuple[str | None, dict]]:
+    """Liest die Fundamentalkennzahlen des Universums - ausschliesslich aus dem Cache.
+
+    Ohne ``cache_only`` wuerde der Aufbau der Vergleichsgruppe bei 50 Titeln
+    Hunderte Abrufe ausloesen. Der Sektorvergleich stuetzt sich deshalb auf das,
+    was bereits geholt wurde; die Aktualisierung ist ein eigener Schritt.
+    """
+    service = get_service()
+    ergebnis: list[tuple[str | None, dict]] = []
+    for ticker in tickers:
+        snapshot = service.get_snapshot(ticker, cache_only=True)
+        if not snapshot.fundamental.available:
+            continue
+        # Nur Werte weiterreichen - MetricSet ist fuer den Streamlit-Cache
+        # unnoetig schwer.
+        werte = {m.key: m.value for m in snapshot.fundamental.available if m.value is not None}
+        ergebnis.append((snapshot.profile.sector, werte))
+    return ergebnis
+
+
+def get_sector_statistics(
+    tickers: list[str], *, min_peers: int | None = None
+) -> SectorStatistics | None:
+    """Baut die Sektorstatistik aus den zwischengespeicherten Daten des Universums."""
+    if not tickers:
+        return None
+    schwelle = min_peers if min_peers is not None else int(
+        get_settings().get(MIN_PEERS_SETTING_KEY, DEFAULT_MIN_PEERS)
+    )
+    rohdaten = _universe_sector_data(tuple(sorted(tickers)))
+    if not rohdaten:
+        return None
+
+    statistik = SectorStatistics(min_peers=schwelle)
+    for sector, werte in rohdaten:
+        eimer = statistik.values.setdefault(sector or "Ohne Branchenangabe", {})
+        for key, value in werte.items():
+            eimer.setdefault(key, []).append(float(value))
+    return statistik
+
+
+def clear_sector_cache() -> None:
+    """Erzwingt den Neuaufbau der Sektorstatistik beim naechsten Zugriff."""
+    _universe_sector_data.clear()
+
+
+def get_score_weights() -> dict[str, float]:
+    """Gespeicherte Gewichtung der Teilscores, sonst die Voreinstellung."""
+    gespeichert = get_settings().get(WEIGHTS_SETTING_KEY, None)
+    gewichte = dict(DEFAULT_WEIGHTS)
+    if isinstance(gespeichert, dict):
+        gewichte.update(
+            {k: float(v) for k, v in gespeichert.items() if k in DEFAULT_WEIGHTS}
+        )
+    return gewichte

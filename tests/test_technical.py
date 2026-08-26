@@ -185,7 +185,7 @@ class TestCrossSignal:
 class TestComputeTechnicalMetrics:
     def test_leere_historie_liefert_alles_als_fehlend(self):
         metrics = compute_technical_metrics([])
-        assert len(metrics) == 24
+        assert len(metrics) == 25
         assert metrics.coverage == 0.0
         assert all(not m.is_available for m in metrics)
         assert all(m.missing_reason for m in metrics)

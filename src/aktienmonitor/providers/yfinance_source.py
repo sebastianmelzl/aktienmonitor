@@ -81,7 +81,9 @@ class YFinanceSource:
 
     # --- Endpunkte -----------------------------------------------------------
 
-    def profile(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def profile(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             info = self._safe(lambda: self._ticker(ticker).info, {}) or {}
             if not info:
@@ -90,10 +92,13 @@ class YFinanceSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="info", ticker=ticker,
-            data_kind=DATA_KIND_PROFILE, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_PROFILE,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def quote(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def quote(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             fast = self._safe(lambda: self._ticker(ticker).fast_info)
             if fast is None:
@@ -110,11 +115,13 @@ class YFinanceSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="fast_info", ticker=ticker,
-            data_kind=DATA_KIND_QUOTE, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_QUOTE,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
     def price_history(
-        self, ticker: str, *, period: str = "5y", interval: str = "1d", force_refresh: bool = False
+        self, ticker: str, *, period: str = "5y", interval: str = "1d",
+        force_refresh: bool = False, cache_only: bool = False,
     ) -> ProviderResult:
         def load() -> dict[str, Any] | None:
             frame = self._safe(
@@ -141,10 +148,12 @@ class YFinanceSource:
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="history", ticker=ticker,
             data_kind=DATA_KIND_PRICE_HISTORY, loader=load, cache_parts=(period, interval),
-            force_refresh=force_refresh,
+            force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def fundamentals(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def fundamentals(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         """Jahres- und Quartalsabschluesse plus Dividenden- und Aktienzahl-Historie."""
 
         def load() -> dict[str, Any] | None:
@@ -160,10 +169,13 @@ class YFinanceSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="financials", ticker=ticker,
-            data_kind=DATA_KIND_FUNDAMENTALS, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_FUNDAMENTALS,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def analyst(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def analyst(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         """Konsens, Kursziele, Schaetzungsrevisionen und Earnings-Termine."""
 
         def load() -> dict[str, Any] | None:
@@ -181,15 +193,19 @@ class YFinanceSource:
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="analyst", ticker=ticker,
-            data_kind=DATA_KIND_ANALYST, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_ANALYST,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )
 
-    def news(self, ticker: str, *, force_refresh: bool = False) -> ProviderResult:
+    def news(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> ProviderResult:
         def load() -> list[dict[str, Any]] | None:
             items = self._safe(lambda: self._ticker(ticker).news, []) or []
             return [jsonable(item) for item in items] or None
 
         return self.runtime.fetch(
             source=self.source, source_key=self.source_key, endpoint="news", ticker=ticker,
-            data_kind=DATA_KIND_NEWS, loader=load, force_refresh=force_refresh,
+            data_kind=DATA_KIND_NEWS,
+            loader=load, force_refresh=force_refresh, cache_only=cache_only,
         )

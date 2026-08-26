@@ -314,6 +314,15 @@ def compute_technical_metrics(
     add("macd", "MACD-Linie", None if macd_result is None else macd_result.macd)
     add("macd_signal", "MACD-Signallinie", None if macd_result is None else macd_result.signal)
     add("macd_histogram", "MACD-Histogramm", None if macd_result is None else macd_result.histogram)
+    # Das Roh-Histogramm haengt am Kursniveau und ist zwischen Titeln nicht
+    # vergleichbar - fuer das Scoring wird es auf den Kurs normiert.
+    add(
+        "macd_histogram_pct",
+        "MACD-Histogramm in % des Kurses",
+        None if (macd_result is None or last_price <= 0)
+        else macd_result.histogram / last_price * 100.0,
+        UNIT_PERCENT,
+    )
 
     bands = bollinger(close)
     add("bollinger_upper", "Bollinger oberes Band", None if bands is None else bands.upper)
@@ -383,6 +392,7 @@ _TECHNICAL_SPEC: tuple[tuple[str, str, str], ...] = (
     ("macd", "MACD-Linie", UNIT_RATIO),
     ("macd_signal", "MACD-Signallinie", UNIT_RATIO),
     ("macd_histogram", "MACD-Histogramm", UNIT_RATIO),
+    ("macd_histogram_pct", "MACD-Histogramm in % des Kurses", UNIT_PERCENT),
     ("bollinger_upper", "Bollinger oberes Band", UNIT_RATIO),
     ("bollinger_middle", "Bollinger Mittellinie", UNIT_RATIO),
     ("bollinger_lower", "Bollinger unteres Band", UNIT_RATIO),
