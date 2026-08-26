@@ -64,6 +64,7 @@ src/aktienmonitor/
   scoring/        Bewertung (netzfrei, UI-frei)
   sentiment/      Schlagzeilen-Einordnung
   narrative/      Faktenblatt und textliche Begruendung je Kandidat
+  screening/      Suchprofile fuer die marktweite Vorauswahl (ohne yfinance)
   formatting.py   Zahlformatierung - bewusst auf Paketebene, nicht unter ui/
   storage/        SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/             Formatierung, Charts, Tabellenlogik, Zugang
@@ -137,6 +138,32 @@ ein Vergleich damit waere immer null.
 `scoring/changes.py` leitet daraus Ereignisse ab (netzfrei, UI-frei). Ereignisse
 ohne Vergleichsstand - ein frisches Kreuzen der Durchschnitte - werden auch beim
 ersten Lauf gemeldet.
+
+## Marktweite Vorschlaege
+
+Alles uebrige bewertet das Universum des Nutzers. `screening/` sucht Kandidaten
+*ausserhalb* davon, in zwei Stufen:
+
+1. **`providers/screener.py`** setzt ein Profil in eine `EquityQuery` um und
+   fragt Yahoo einmal ab - bis zu 250 Titel je Lauf, gestuetzt auf wenige Felder.
+2. Die vollstaendige Bewertung laeuft erst danach und nur fuer die gewaehlten
+   Treffer, weil dafuer je Titel mehrere Abrufe noetig sind.
+
+`screening/profiles.py` importiert bewusst **kein yfinance** - die Profile sind
+Daten und einzeln pruefbar; die Uebersetzung passiert im Provider.
+
+Zwei Dinge, die beim Aendern erhalten bleiben muessen:
+
+- **Jedes Profil braucht eine Qualitaetshuerde** (Rentabilitaet, Marge,
+  Verschuldung oder Liquiditaet). Eine Suche allein nach Guenstigkeit findet
+  vor allem Titel, die aus gutem Grund billig sind. Ein Test fordert das ein.
+- **Die Einheiten der Screenerfelder sind nicht dokumentiert** und liessen sich
+  ohne Netzzugang nicht pruefen. `diagnose_result_count` meldet deshalb null
+  Treffer und das Anschlagen an der Obergrenze als wahrscheinlichen
+  Einheitenfehler - beides ist das erwartbare Symptom.
+
+Bei Vorschlaegen ist die Sektor-Vergleichsgruppe **die Trefferliste selbst**,
+nicht die Watchlist - sie stammt aus derselben Suche.
 
 ## Aufteilungsrechner
 

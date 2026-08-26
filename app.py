@@ -23,6 +23,7 @@ navigation = st.navigation(
         st.Page("views/watchlist.py", title="Watchlist", icon="📋"),
         st.Page("views/detail.py", title="Detailansicht", icon="🔍"),
         st.Page("views/kandidaten.py", title="Kandidaten", icon="🔔"),
+        st.Page("views/vorschlaege.py", title="Vorschlaege", icon="🧭"),
         st.Page("views/vergleich.py", title="Vergleich", icon="⚖️"),
         st.Page("views/anlagevorschlag.py", title="Aufteilung", icon="🧮"),
         st.Page("views/datenquellen.py", title="Datenquellen", icon="🔌"),

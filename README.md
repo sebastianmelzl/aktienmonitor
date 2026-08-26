@@ -106,7 +106,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 419 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 449 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -130,6 +130,7 @@ views/                      Seiten der Oberfläche (kein Rechenkram)
   watchlist.py              Universum verwalten, CSV-Import, Listen
   detail.py                 Chart, Kennzahlen, Score-Aufschlüsselung
   kandidaten.py             Was sich seit dem letzten Stand bewegt hat
+  vorschlaege.py            Kandidaten aus dem Markt statt aus der Watchlist
   vergleich.py              2-5 Titel nebeneinander
   anlagevorschlag.py        Aufteilungsrechner für einen Betrag
   datenquellen.py           Verfügbarkeitsprüfung, Zugriffsprotokoll
@@ -531,6 +532,32 @@ erzeugen. Er entsteht **ausschließlich aus einem Faktenblatt** der berechneten
 Zahlen – das Faktenblatt ist über „Faktenblatt ansehen" einsehbar. Das Modell
 darf kein Wissen über das Unternehmen einbringen, keine Kursprognose abgeben
 und keine Handelsbegriffe verwenden.
+
+### Vorschläge – Kandidaten aus dem Markt
+
+Die bisherigen Seiten bewerten Titel, die Sie selbst aufgenommen haben. Die
+Vorschlagsseite sucht darüber hinaus, in zwei Stufen:
+
+**Stufe 1** stellt eine einzige Abfrage an Yahoo Finance mit den harten
+Kriterien eines Suchprofils (*Solide Dividende*, *Günstig bewertet*,
+*Qualität*, *Wachstum zu vernünftigem Preis*) und liefert bis zu 250 Titel.
+**Stufe 2** holt für die gewählten Treffer den vollständigen Kennzahlensatz und
+bewertet sie wie jeden anderen Titel.
+
+Jedes Profil enthält eine **Qualitätshürde** – Rentabilität, Marge,
+Verschuldung oder Liquidität. Eine Suche allein nach niedriger Bewertung findet
+sonst vor allem Titel, die aus gutem Grund billig sind.
+
+Der wichtigste Vorbehalt steht auch auf der Seite selbst: **wer Hunderte Titel
+nach Schwellen durchsucht, die nie auf Prognosekraft geprüft wurden, findet oben
+in der Liste mit hoher Wahrscheinlichkeit Zufall statt Signal** – und zwar umso
+stärker, je größer die durchsuchte Menge ist. Die Qualitätshürden mildern das,
+sie beseitigen es nicht.
+
+Bekannte Unsicherheit: Welche Einheit die Yahoo-Screenerfelder erwarten
+(Prozent oder Anteil), ist nicht dokumentiert und war ohne Netzzugang nicht
+prüfbar. Null Treffer oder ein Anschlagen an der Obergrenze deuten deshalb eher
+auf einen Einheitenfehler als auf den Markt – die Seite sagt das dazu.
 
 ### Aufteilung – ein Rechner, keine Empfehlung
 

@@ -35,7 +35,8 @@ class TestSeitenLaufen:
     @pytest.mark.parametrize(
         "seite",
         ["uebersicht.py", "watchlist.py", "detail.py", "vergleich.py",
-         "kandidaten.py", "anlagevorschlag.py", "datenquellen.py", "einstellungen.py"],
+         "kandidaten.py", "vorschlaege.py", "anlagevorschlag.py",
+         "datenquellen.py", "einstellungen.py"],
     )
     def test_seite_wirft_keine_ausnahme(self, seite):
         ergebnis = run_page(seite)
@@ -206,3 +207,26 @@ class TestAufteilungsseite:
         result = run_page("anlagevorschlag.py")
         meldungen = " ".join(w.value or "" for w in result.warning)
         assert "keine Anlageempfehlung" in meldungen
+
+
+@pytest.mark.usefixtures("seeded_app")
+class TestVorschlagsseite:
+    def test_ohne_suche_kein_abruf(self):
+        """Die Seite darf beim blossen Aufruf keine Marktabfrage ausloesen."""
+        result = run_page("vorschlaege.py")
+        assert not result.exception
+        meldungen = " ".join(i.value or "" for i in result.info)
+        assert "Noch keine Suche" in meldungen
+
+    def test_warnhinweis_zur_marktsuche_ist_sichtbar(self):
+        """Der Hinweis auf Zufallsfunde bei grossen Suchmengen darf nie fehlen."""
+        result = run_page("vorschlaege.py")
+        meldungen = " ".join(w.value or "" for w in result.warning)
+        assert "Zufall statt Signal" in meldungen
+
+    def test_profile_werden_angeboten(self):
+        from aktienmonitor.screening.profiles import PROFILES
+
+        result = run_page("vorschlaege.py")
+        assert result.radio, "Es muss eine Profilauswahl geben"
+        assert len(result.radio[0].options) == len(PROFILES)

@@ -33,6 +33,7 @@ from ..storage.db import Database
 from ..storage.history import ScoreHistory
 from .base import ProviderRuntime
 from .finnhub_source import FinnhubSource
+from .screener import MarketScreener
 from .throttle import ThrottleRegistry
 from .yfinance_source import YFinanceSource
 
@@ -114,6 +115,7 @@ class StockDataService:
             retry_max_attempts=config.retry_max_attempts,
         )
         self.yfinance = YFinanceSource(self.runtime)
+        self.screener = MarketScreener(self.runtime)
         self.finnhub = FinnhubSource(self.runtime, config.finnhub_api_key)
         self.classifier = SentimentClassifier(
             config.anthropic_api_key, self.cache, model=config.anthropic_model
