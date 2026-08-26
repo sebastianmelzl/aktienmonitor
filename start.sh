@@ -33,16 +33,60 @@ finde_python() {
     return 1
 }
 
-if [ ! -x "$VENV/bin/python" ]; then
-    info "Erster Start - die Umgebung wird eingerichtet. Das dauert ein bis zwei Minuten."
+zeige_installationshinweis() {
+    echo
+    echo "Benoetigt wird Python 3.$MIN_PY_MINOR oder neuer. Installation:"
+    case "$(uname -s)" in
+        Darwin)
+            echo "  brew install python@3.12"
+            echo "  (ohne Homebrew: https://www.python.org/downloads/macos/)"
+            echo
+            echo "  Hinweis: macOS bringt Python 3.9 mit. Das laesst sich nicht"
+            echo "  aktualisieren - eine neuere Version wird daneben installiert."
+            ;;
+        Linux)
+            echo "  sudo apt install python3.12 python3.12-venv    # Debian/Ubuntu"
+            echo "  sudo dnf install python3.12                    # Fedora"
+            ;;
+        *)
+            echo "  https://www.python.org/downloads/"
+            ;;
+    esac
+}
 
-    if ! PYTHON="$(finde_python)"; then
+# Eine vorhandene Umgebung kann von einem aelteren Python stammen. Das faellt
+# sonst erst bei der Installation auf - und dann mit einer Fehlermeldung, die
+# nicht nach dem eigentlichen Grund aussieht.
+if [ -x "$VENV/bin/python" ]; then
+    if ! "$VENV/bin/python" -c "import sys; sys.exit(0 if sys.version_info >= (3, $MIN_PY_MINOR) else 1)" 2>/dev/null; then
+        VORHANDEN="$("$VENV/bin/python" --version 2>&1 || echo 'unbekannt')"
+        rot "Die vorhandene Umgebung nutzt $VORHANDEN - zu alt fuer dieses Projekt."
+
+        if ! PYTHON="$(finde_python)"; then
+            zeige_installationshinweis
+            echo
+            echo "Danach dieses Skript erneut starten - die alte Umgebung wird"
+            echo "dann automatisch ersetzt."
+            exit 1
+        fi
+
+        # Nur entfernen, wenn es wirklich eine virtuelle Umgebung ist.
+        if [ -f "$VENV/pyvenv.cfg" ]; then
+            info "Wird durch $($PYTHON --version) ersetzt."
+            rm -rf "$VENV"
+        else
+            rot "$VENV ist keine virtuelle Umgebung. Bitte von Hand pruefen."
+            exit 1
+        fi
+    fi
+fi
+
+if [ ! -x "$VENV/bin/python" ]; then
+    info "Die Umgebung wird eingerichtet. Das dauert ein bis zwei Minuten."
+
+    if [ -z "${PYTHON:-}" ] && ! PYTHON="$(finde_python)"; then
         rot "Kein Python 3.$MIN_PY_MINOR oder neuer gefunden."
-        echo
-        echo "Installation:"
-        echo "  macOS:          brew install python@3.12"
-        echo "  Ubuntu/Debian:  sudo apt install python3.12 python3.12-venv"
-        echo "  Windows:        https://www.python.org/downloads/"
+        zeige_installationshinweis
         exit 1
     fi
 
@@ -64,12 +108,20 @@ PROJEKT_HASH="$(cksum pyproject.toml | awk '{print $1}')"
 if [ ! -f "$MARKER" ] || [ "$(cat "$MARKER" 2>/dev/null)" != "$PROJEKT_HASH" ]; then
     info "Abhaengigkeiten werden installiert ..."
     "$VENV/bin/python" -m pip install --quiet --upgrade pip
-    "$VENV/bin/python" -m pip install --quiet -e ".[dev]" || {
+    if ! "$VENV/bin/python" -m pip install --quiet -e ".[dev]" 2>"$VENV/.install-fehler"; then
         rot "Die Installation ist fehlgeschlagen."
-        echo "Bitte die Ausgabe oben pruefen; haeufigste Ursache ist eine fehlende"
-        echo "Internetverbindung oder ein Proxy."
+        echo
+        sed 's/^/  /' "$VENV/.install-fehler" | tail -20
+        echo
+        if grep -q "requires a different Python" "$VENV/.install-fehler"; then
+            echo "Die Python-Version passt nicht."
+            zeige_installationshinweis
+        else
+            echo "Bitte die Meldung oben pruefen. Haeufig liegt es an einer"
+            echo "unterbrochenen Internetverbindung oder einem Proxy."
+        fi
         exit 1
-    }
+    fi
     echo "$PROJEKT_HASH" > "$MARKER"
     gruen "Abhaengigkeiten installiert."
 fi
