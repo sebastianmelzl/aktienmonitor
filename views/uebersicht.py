@@ -61,6 +61,14 @@ with spalte_modus:
              "Mit Haken wird alles neu abgerufen - das dauert deutlich laenger und belastet "
              "die Rate-Limits der Anbieter.",
     )
+    mit_news = st.checkbox(
+        "Schlagzeilen und Sentiment mitladen",
+        value=config.has_anthropic,
+        help="Holt zu jedem Titel die Meldungen und ordnet neue Schlagzeilen per "
+             "Sprachmodell ein. Bereits eingeordnete Schlagzeilen kommen aus dem Cache "
+             "und kosten nichts. Ohne Anthropic-Schluessel werden die Meldungen nur "
+             "geholt, nicht bewertet.",
+    )
 with spalte_knopf:
     st.write("")
     aktualisieren = st.button("Alle Werte aktualisieren", type="primary", width="stretch")
@@ -83,7 +91,9 @@ if aktualisieren:
         fortschritt.progress(min(1.0, anteil), text=text)
 
     with st.spinner("Daten werden geholt - bei kaltem Cache dauert das einige Minuten."):
-        service.get_snapshots(ticker, force_refresh=alles_neu, progress=melde)
+        service.get_snapshots(
+            ticker, force_refresh=alles_neu, with_news=mit_news, progress=melde
+        )
     fortschritt.empty()
     store.set(LAST_REFRESH_KEY, datetime.now(UTC).isoformat())
     clear_sector_cache()
@@ -197,7 +207,9 @@ st.dataframe(
         "Technik": st.column_config.NumberColumn(format="%.0f"),
         "Analysten": st.column_config.NumberColumn(format="%.0f"),
         "Sentiment": st.column_config.NumberColumn(
-            format="%.0f", help="Folgt in Phase 4 - derzeit durchgehend n/a"
+            format="%.0f",
+            help="Leer, solange kein Anthropic-Schluessel hinterlegt ist oder zu "
+                 "wenige Meldungen eingeordnet wurden",
         ),
         "Abdeckung fundamental": st.column_config.NumberColumn(
             format="%.0f", help="Anteil der genutzten Gewichtung in Prozent"

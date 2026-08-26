@@ -220,7 +220,8 @@ def score_snapshot(
             "analyst", snapshot.analyst, sector=sector, statistics=statistics
         ),
         "sentiment": score_category(
-            "sentiment", MetricSet({}), sector=sector, statistics=statistics
+            "sentiment", getattr(snapshot, "sentiment", MetricSet({})),
+            sector=sector, statistics=statistics,
         ),
     }
 

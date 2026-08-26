@@ -21,6 +21,7 @@ DATA_KIND_FUNDAMENTALS = "fundamentals"
 DATA_KIND_PROFILE = "profile"
 DATA_KIND_ANALYST = "analyst"
 DATA_KIND_NEWS = "news"
+DATA_KIND_SENTIMENT = "sentiment"
 
 DATA_KINDS = (
     DATA_KIND_QUOTE,
@@ -70,6 +71,7 @@ class Config:
 
     finnhub_api_key: str | None
     anthropic_api_key: str | None
+    anthropic_model: str
     db_path: Path
     log_level: str
     ttl_seconds: dict[str, int] = field(default_factory=dict)
@@ -101,6 +103,7 @@ def load_config(env_file: Path | None = None) -> Config:
     return Config(
         finnhub_api_key=_key("FINNHUB_API_KEY"),
         anthropic_api_key=_key("ANTHROPIC_API_KEY"),
+        anthropic_model=(os.getenv("ANTHROPIC_MODEL") or "claude-opus-5").strip(),
         db_path=db_path,
         log_level=(os.getenv("AKTIENMONITOR_LOG_LEVEL") or "INFO").strip().upper(),
         ttl_seconds={

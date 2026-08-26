@@ -323,7 +323,17 @@ class TestScoreSnapshot:
     def test_alle_vier_teilscores_werden_ausgewiesen(self):
         ergebnis = score_snapshot(self._snapshot())
         assert set(ergebnis.categories) == {"fundamental", "technical", "analyst", "sentiment"}
-        assert ergebnis.categories["sentiment"].total_count == 0
+
+    def test_sentiment_ohne_meldungen_bleibt_unbewertet(self):
+        """Ein Snapshot ohne eingeordnete Meldungen ergibt keinen Sentiment-Score.
+
+        Die Regeln existieren, aber keine Kennzahl ist verfuegbar - der Teilscore
+        bleibt n/a und sein Gewicht wird umverteilt.
+        """
+        teilscore = score_snapshot(self._snapshot()).categories["sentiment"]
+        assert teilscore.total_count == 3
+        assert teilscore.used_count == 0
+        assert teilscore.score is None
 
     def test_score_liegt_immer_zwischen_0_und_100(self):
         for note in (1.0, 2.5, 5.0):

@@ -189,7 +189,7 @@ class NewsItem:
     source_name: str
     published_at: datetime
     summary: str | None = None
-    # Wird erst in Phase 4 gefuellt; None bedeutet "nicht eingeordnet".
+    # None bedeutet ausdruecklich "nicht eingeordnet" - nicht "neutral".
     sentiment: str | None = None
     sentiment_rationale: str | None = None
 

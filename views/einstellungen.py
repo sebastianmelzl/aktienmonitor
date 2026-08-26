@@ -199,7 +199,7 @@ with tab_quellen:
                 },
                 {
                     "Quelle": "Anthropic",
-                    "Rolle": "Sentiment (Phase 4)",
+                    "Rolle": "Sentiment-Einordnung",
                     "Schluessel": "ANTHROPIC_API_KEY",
                     "Status": "aktiv" if config.has_anthropic else "kein Schluessel",
                     "Limit/Min.": "-",

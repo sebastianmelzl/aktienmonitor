@@ -267,10 +267,26 @@ ANALYST_RULES: tuple[ScoreRule, ...] = (
 )
 
 
-# Der Sentiment-Teilscore folgt in Phase 4. Bis dahin ist die Regelmenge leer -
-# der Teilscore ist damit nicht berechenbar und sein Gewicht wird auf die
-# uebrigen umverteilt, statt einen Ersatzwert einzusetzen.
-SENTIMENT_RULES: tuple[ScoreRule, ...] = ()
+SENTIMENT_RULES: tuple[ScoreRule, ...] = (
+    ScoreRule(
+        "sentiment_balance", 1.0, _ABS,
+        breakpoints=((-100.0, 0.0), (-50.0, 20.0), (0.0, 50.0), (50.0, 80.0), (100.0, 100.0)),
+        rationale="Saldo aus positiven und negativen Schlagzeilen. Die Einordnung stammt "
+                  "von einem Sprachmodell und ist eine Einschaetzung, keine Messung.",
+    ),
+    ScoreRule(
+        "sentiment_balance_7d", 0.8, _ABS,
+        breakpoints=((-100.0, 0.0), (-50.0, 20.0), (0.0, 50.0), (50.0, 80.0), (100.0, 100.0)),
+        rationale="Derselbe Saldo, beschraenkt auf die letzten sieben Tage - die aktuelle "
+                  "Nachrichtenlage wiegt schwerer als die aeltere.",
+    ),
+    ScoreRule(
+        "sentiment_positive_share", 0.5, _ABS,
+        breakpoints=((0.0, 0.0), (20.0, 35.0), (40.0, 60.0), (60.0, 80.0), (80.0, 100.0)),
+        rationale="Anteil positiver Meldungen. Ergaenzt den Saldo, weil viele neutrale "
+                  "Meldungen einen Saldo nahe null erzeugen, ohne dass Negatives vorliegt.",
+    ),
+)
 
 
 RULES_BY_CATEGORY: dict[str, tuple[ScoreRule, ...]] = {

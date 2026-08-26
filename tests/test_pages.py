@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -21,10 +21,13 @@ import pytest
 from aktienmonitor.config import (
     DATA_KIND_ANALYST,
     DATA_KIND_FUNDAMENTALS,
+    DATA_KIND_NEWS,
     DATA_KIND_PRICE_HISTORY,
     DATA_KIND_PROFILE,
     DATA_KIND_QUOTE,
 )
+from aktienmonitor.models import NewsItem
+from aktienmonitor.sentiment.classifier import SentimentClassifier
 from aktienmonitor.storage.cache import Cache, build_key
 from aktienmonitor.storage.db import Database
 from aktienmonitor.storage.watchlist import Watchlist
@@ -103,6 +106,70 @@ def _statements(umsatz: float, marge: float) -> dict:
     }
 
 
+class _FakeBlock:
+    """Textblock einer Modellantwort."""
+
+    type = "text"
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeResponse:
+    stop_reason = "end_turn"
+
+    def __init__(self, text: str) -> None:
+        self.content = [_FakeBlock(text)]
+
+
+class _FakeMessages:
+    """Ordnet jede Schlagzeile abwechselnd ein - deterministisch und ohne Netz."""
+
+    def create(self, **kwargs):
+        import json as _json
+        import re as _re
+
+        zeilen = _re.findall(r"^(\d+)\. ", kwargs["messages"][0]["content"], _re.MULTILINE)
+        labels = ("positive", "neutral", "negative")
+        return _FakeResponse(
+            _json.dumps(
+                {
+                    "verdicts": [
+                        {
+                            "index": int(i),
+                            "label": labels[int(i) % 3],
+                            "rationale": "Testbegruendung",
+                        }
+                        for i in zeilen
+                    ]
+                }
+            )
+        )
+
+
+class _FakeAnthropic:
+    def __init__(self) -> None:
+        self.messages = _FakeMessages()
+
+
+def _news_payload(ticker: str, count: int = 6) -> list[dict]:
+    """Meldungen im aktuellen yfinance-Format."""
+    from datetime import UTC, datetime
+
+    return [
+        {
+            "content": {
+                "title": f"{ticker}: Meldung {i}",
+                "pubDate": (datetime.now(UTC) - timedelta(days=i)).isoformat(),
+                "provider": {"displayName": "Testquelle"},
+                "canonicalUrl": {"url": f"https://example.com/{ticker}/{i}"},
+                "summary": "Kurzfassung der Meldung.",
+            }
+        }
+        for i in range(count)
+    ]
+
+
 @pytest.fixture(scope="session")
 def seeded_app(tmp_path_factory):
     """Legt eine temporaere Datenbank mit Testtiteln an und richtet die App darauf aus."""
@@ -166,6 +233,25 @@ def seeded_app(tmp_path_factory):
                       {"period": periode, "interval": "1d", "bars": reihe},
                       source="yfinance", data_kind=DATA_KIND_PRICE_HISTORY,
                       ttl_seconds=CACHE_TTL, ticker=ticker)
+
+        # Schlagzeilen ablegen und vorab einordnen, damit der Sentiment-Pfad
+        # im Seitentest ohne Netz und ohne API-Schluessel abgedeckt ist.
+        meldungen = _news_payload(ticker)
+        cache.set(build_key("yfinance", "news", ticker), meldungen, source="yfinance",
+                  data_kind=DATA_KIND_NEWS, ttl_seconds=CACHE_TTL, ticker=ticker)
+
+        klassifikator = SentimentClassifier(None, cache, client=_FakeAnthropic())
+        klassifikator.classify(
+            [
+                NewsItem(
+                    headline=eintrag["content"]["title"],
+                    url=eintrag["content"]["canonicalUrl"]["url"],
+                    source_name="Testquelle",
+                    published_at=datetime.fromisoformat(eintrag["content"]["pubDate"]),
+                )
+                for eintrag in meldungen
+            ]
+        )
     return db_path
 
 
@@ -242,3 +328,46 @@ class TestVergleich:
     def test_ohne_auswahl_kein_fehler(self):
         ergebnis = run_page("vergleich.py")
         assert not ergebnis.exception
+
+
+@pytest.mark.usefixtures("seeded_app")
+class TestSentimentInDerOberflaeche:
+    def test_sentiment_teilscore_wird_berechnet(self):
+        """Mit eingeordneten Meldungen ist der vierte Teilscore vorhanden."""
+        ergebnis = run_page("vergleich.py")
+        ergebnis.multiselect[0].select("TESTA").select("TESTB").run()
+        assert not ergebnis.exception, [str(e.message) for e in ergebnis.exception]
+
+        teilscores = ergebnis.dataframe[0].value
+        sentiment = teilscores[teilscores["Teilscore"] == "Sentiment"].iloc[0]
+        assert sentiment["TESTA"] is not None
+        assert not (isinstance(sentiment["TESTA"], float) and sentiment["TESTA"] != sentiment["TESTA"])
+
+    def test_sentiment_geht_in_den_gesamtscore_ein(self):
+        """Ist Sentiment berechenbar, wird sein Gewicht nicht mehr umverteilt."""
+        from aktienmonitor.config import load_config
+        from aktienmonitor.providers.fetcher import StockDataService
+        from aktienmonitor.scoring.engine import score_snapshot
+
+        service = StockDataService(load_config())
+        snapshot = service.get_snapshot("TESTA", cache_only=True)
+        bewertung = score_snapshot(snapshot)
+
+        assert snapshot.sentiment["sentiment_balance"].is_available
+        assert bewertung.categories["sentiment"].is_available
+        assert bewertung.effective_weights["sentiment"] > 0
+        assert "Sentiment" not in bewertung.redistributed
+
+    def test_meldungen_behalten_quelle_und_link(self):
+        from aktienmonitor.config import load_config
+        from aktienmonitor.providers.fetcher import StockDataService
+
+        service = StockDataService(load_config())
+        snapshot = service.get_snapshot("TESTA", cache_only=True)
+        assert snapshot.news
+        for meldung in snapshot.news:
+            assert meldung.url.startswith("https://")
+            assert meldung.source_name
+            # Vorab eingeordnet: Einordnung samt Begruendung liegt vor.
+            assert meldung.sentiment in {"positiv", "neutral", "negativ"}
+            assert meldung.sentiment_rationale

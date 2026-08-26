@@ -59,7 +59,7 @@ Verzeichnisse sind von Git ausgeschlossen.
 | Dienst | Wofür | Kostenlos erhältlich unter |
 |---|---|---|
 | **Finnhub** | Ergänzende Kennzahlen und Schlagzeilen für US-Titel | <https://finnhub.io/register> |
-| **Anthropic** | Sentiment-Einordnung der Schlagzeilen (ab Phase 4) | <https://console.anthropic.com/settings/keys> |
+| **Anthropic** | Sentiment-Einordnung der Schlagzeilen | <https://console.anthropic.com/settings/keys> |
 
 Beide Schlüssel werden ausschließlich aus der `.env` gelesen. Diese Datei steht
 in `.gitignore` und darf nie committet werden. Ohne Anthropic-Schlüssel bleibt
@@ -73,7 +73,7 @@ regelmäßig, deshalb wird hier gemessen statt behauptet.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest        # 290 Tests, alle ohne Netzwerkzugriff
+.venv/bin/python -m pytest        # 321 Tests, alle ohne Netzwerkzugriff
 .venv/bin/ruff check .            # Linting
 ```
 
@@ -113,6 +113,9 @@ src/aktienmonitor/
     fundamental.py          Fundamentale Kennzahlen
     technical.py            Technische Indikatoren
     analyst.py              Analysten-Kennzahlen
+  sentiment/                Schlagzeilen-Einordnung
+    classifier.py           Anthropic-API, Caching je Schlagzeile
+    metrics.py              Stimmungssaldo und Anteile
   scoring/                  Scoring - ohne Netz und ohne UI testbar
     rules.py                Stuetzstellen-Interpolation, Regeltypen
     definitions.py          Das Regelwerk: Kennzahl, Gewicht, Bewertungsart
@@ -235,6 +238,31 @@ ein RSI über 5 statt 14 Tage wäre eine andere Kennzahl.
 | **Earnings-Überraschung (Schnitt 4 Quartale)** | Mittelwert der letzten vier veröffentlichten Quartale. Künftige Termine ohne Ergebnis zählen nicht mit. |
 | **Nächster Termin Zahlen** | Datum der nächsten Veröffentlichung. |
 
+### News und Sentiment
+
+| Kennzahl | Bedeutung |
+|---|---|
+| **Gefundene Meldungen** | Anzahl der Schlagzeilen zum Titel. |
+| **Davon eingeordnet** | Wie viele davon eine Sentiment-Einordnung erhalten haben. Ohne Anthropic-Schlüssel ist das null. |
+| **Stimmungssaldo** | (positive − negative) / eingeordnete × 100. −100 heißt ausschließlich negativ, +100 ausschließlich positiv. Neutrale Meldungen zählen in den Nenner, drücken den Saldo also Richtung null. |
+| **Stimmungssaldo (7 Tage)** | Derselbe Saldo, beschränkt auf die letzten sieben Tage. |
+| **Anteil positiver Meldungen** | Ergänzt den Saldo: viele neutrale Meldungen erzeugen einen Saldo nahe null, ohne dass Negatives vorliegt. |
+
+Die Einordnung stammt von einem Sprachmodell (Anthropic API) und ist eine
+**Einschätzung, keine Messung**. Zu jeder Meldung wird eine kurze Begründung
+mitgeführt, und die Originalquelle bleibt immer verlinkt – die Einordnung lässt
+sich am Original nachlesen.
+
+Zwei Vorsichtsmaßnahmen: Bei weniger als drei eingeordneten Meldungen wird kein
+Saldo gebildet – aus zwei Schlagzeilen entsteht Rauschen, kein Signal. Und wenn
+das Modell zu einer Meldung kein Urteil liefert, bleibt sie **unbewertet**
+statt stillschweigend auf „neutral" gesetzt zu werden.
+
+**Kosten:** Eine Schlagzeile kostet rund 40 Token. Ein voller Lauf über 50 Titel
+mit je 10 Meldungen liegt bei etwa 20.000 Token – rund 10 Cent. Jede Schlagzeile
+wird nach der ersten Einordnung dauerhaft zwischengespeichert, Folgeläufe kosten
+praktisch nichts. Das Modell ist über `ANTHROPIC_MODEL` in der `.env` wählbar.
+
 ## Scoring
 
 Vier Teilscores von jeweils 0–100 ergeben einen gewichteten Gesamtscore. Der
@@ -263,11 +291,10 @@ Der Gesamtscore gewichtet die Teilscores:
 Gesamtscore = Σ(Teilscore_k × Gewicht_k) / Σ(Gewicht_k)  nur über berechenbare Teilscores
 ```
 
-Ein nicht berechenbarer Teilscore – derzeit immer *Sentiment*, das erst in
-Phase 4 kommt – erhält das Gewicht null, und die übrigen Gewichte werden
-proportional hochskaliert. Bei der Voreinstellung 40/25/25/10 wird ohne
-Sentiment also mit 44/28/28 gerechnet. Die Oberfläche nennt die umverteilten
-Bereiche ausdrücklich.
+Ein nicht berechenbarer Teilscore erhält das Gewicht null, und die übrigen
+Gewichte werden proportional hochskaliert. Ohne Anthropic-Schlüssel trifft das
+immer den Sentiment-Score: aus der Voreinstellung 40/25/25/10 wird dann
+44/28/28. Die Oberfläche nennt die umverteilten Bereiche ausdrücklich.
 
 **Voreinstellung der Gewichte:** Fundamental 40 %, Technik 25 %, Analysten
 25 %, Sentiment 10 %. Über Schieberegler in der Seitenleiste und unter

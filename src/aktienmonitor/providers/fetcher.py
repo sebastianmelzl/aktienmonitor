@@ -24,6 +24,8 @@ from ..models import (
     ProviderResult,
     SecurityProfile,
 )
+from ..sentiment.classifier import SentimentClassifier
+from ..sentiment.metrics import compute_sentiment_metrics
 from ..storage.cache import Cache
 from ..storage.call_log import CallLog
 from ..storage.db import Database
@@ -72,6 +74,7 @@ class StockSnapshot:
     fundamental: MetricSet = field(default_factory=lambda: MetricSet({}))
     technical: MetricSet = field(default_factory=lambda: MetricSet({}))
     analyst: MetricSet = field(default_factory=lambda: MetricSet({}))
+    sentiment: MetricSet = field(default_factory=lambda: MetricSet({}))
     news: list[NewsItem] = field(default_factory=list)
     freshness: list[DataFreshness] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -109,6 +112,9 @@ class StockDataService:
         )
         self.yfinance = YFinanceSource(self.runtime)
         self.finnhub = FinnhubSource(self.runtime, config.finnhub_api_key)
+        self.classifier = SentimentClassifier(
+            config.anthropic_api_key, self.cache, model=config.anthropic_model
+        )
 
     # --- oeffentliche Schnittstelle -----------------------------------------
 
@@ -119,6 +125,7 @@ class StockDataService:
         force_refresh: bool = False,
         history_period: str = "5y",
         cache_only: bool = False,
+        with_news: bool = True,
     ) -> StockSnapshot:
         """Holt alle Daten eines Titels und berechnet die Kennzahlen.
 
@@ -201,6 +208,20 @@ class StockDataService:
             analyst_payload=analyst_payload, current_price=price, info=info
         )
 
+        # Schlagzeilen und deren Einordnung. Im Cache-Only-Betrieb entsteht dabei
+        # weder ein Datenabruf noch ein API-Aufruf beim Sprachmodell.
+        news: list[NewsItem] = []
+        sentiment = compute_sentiment_metrics([], key_available=self.classifier.available)
+        if with_news:
+            news = self.get_news(
+                ticker, force_refresh=force_refresh, cache_only=cache_only
+            )
+            if news:
+                news = self.classifier.classify(news, cache_only=cache_only)
+            sentiment = compute_sentiment_metrics(
+                news, key_available=self.classifier.available
+            )
+
         return StockSnapshot(
             ticker=ticker,
             profile=profile,
@@ -211,6 +232,8 @@ class StockDataService:
             fundamental=fundamental,
             technical=technical,
             analyst=analyst,
+            sentiment=sentiment,
+            news=news,
             freshness=freshness,
             errors=errors,
         )
@@ -222,6 +245,7 @@ class StockDataService:
         force_refresh: bool = False,
         cache_only: bool = False,
         history_period: str = "5y",
+        with_news: bool = True,
         progress: Callable[[int, int, str], None] | None = None,
     ) -> dict[str, StockSnapshot]:
         """Holt die Daten mehrerer Titel nacheinander.
@@ -252,6 +276,7 @@ class StockDataService:
                     force_refresh=force_refresh,
                     cache_only=cache_only,
                     history_period=history_period,
+                    with_news=with_news,
                 )
             except Exception as exc:  # noqa: BLE001 - ein Titel darf den Lauf nicht kippen
                 logger.exception("Abruf fuer %s fehlgeschlagen", ticker)
@@ -265,18 +290,24 @@ class StockDataService:
             progress(len(eindeutig), len(eindeutig), "")
         return ergebnis
 
-    def get_news(self, ticker: str, *, force_refresh: bool = False) -> list[NewsItem]:
+    def get_news(
+        self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
+    ) -> list[NewsItem]:
         """Schlagzeilen eines Titels - immer mit Quelle und Link."""
         ticker = ticker.upper()
         items: list[NewsItem] = []
 
         if self.finnhub.available:
-            result = self.finnhub.company_news(ticker, force_refresh=force_refresh)
+            result = self.finnhub.company_news(
+                ticker, force_refresh=force_refresh, cache_only=cache_only
+            )
             if result.ok and isinstance(result.data, list):
                 items.extend(_parse_finnhub_news(result.data))
 
         if not items:
-            result = self.yfinance.news(ticker, force_refresh=force_refresh)
+            result = self.yfinance.news(
+                ticker, force_refresh=force_refresh, cache_only=cache_only
+            )
             if result.ok and isinstance(result.data, list):
                 items.extend(_parse_yfinance_news(result.data))
 

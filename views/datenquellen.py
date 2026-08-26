@@ -84,7 +84,7 @@ with spalte_finnhub:
         )
 with spalte_anthropic:
     if config.has_anthropic:
-        st.success("Anthropic-Schluessel ist hinterlegt (Sentiment ab Phase 4).")
+        st.success("Anthropic-Schluessel ist hinterlegt - Schlagzeilen werden eingeordnet.")
     else:
         st.info(
             "Kein Anthropic-Schluessel hinterlegt. Die Sentiment-Einordnung bleibt "

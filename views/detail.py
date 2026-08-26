@@ -9,6 +9,7 @@ from aktienmonitor.ui.charts import INDICATOR_OPTIONS, price_chart
 from aktienmonitor.ui.common import (
     clear_sector_cache,
     coverage_caption,
+    get_config,
     get_sector_statistics,
     get_service,
     get_settings,
@@ -202,22 +203,48 @@ with tab_analysten:
         metrics_table(snapshot.analyst, snapshot.currency), width="stretch", hide_index=True
     )
 
-# --- News --------------------------------------------------------------------
+# --- Schlagzeilen und Sentiment ----------------------------------------------
 st.subheader("Schlagzeilen")
-st.caption(
-    "Sentiment-Einordnung folgt in Phase 4. Bis dahin werden die Meldungen "
-    "unbewertet mit Quelle und Link angezeigt."
+
+konfiguration = get_config()
+unbewertet = [m for m in snapshot.news if not m.sentiment]
+if not konfiguration.has_anthropic and unbewertet:
+    # Nur melden, wenn tatsaechlich etwas unbewertet bleibt - bereits
+    # eingeordnete Meldungen stehen weiterhin aus dem Cache zur Verfuegung.
+    st.info(
+        f"{len(unbewertet)} von {len(snapshot.news)} Meldungen sind nicht eingeordnet: "
+        "dafuer wird ein Anthropic-Schluessel benoetigt. Er laesst sich jederzeit in der "
+        "`.env` unter `ANTHROPIC_API_KEY` nachtragen; bereits eingeordnete Meldungen "
+        "bleiben erhalten.",
+        icon="ℹ️",
+    )
+
+st.caption(coverage_caption(snapshot.sentiment, "Sentiment-Kennzahlen"))
+st.dataframe(
+    metrics_table(snapshot.sentiment, snapshot.currency), width="stretch", hide_index=True
 )
-if st.button("Schlagzeilen laden"):
-    with st.spinner("Meldungen werden geladen ..."):
-        meldungen = service.get_news(ticker, force_refresh=aktualisieren)
-    if not meldungen:
-        st.info("Zu diesem Titel wurden keine Meldungen gefunden.")
-    for meldung in meldungen[:20]:
+
+if not snapshot.news:
+    st.info(
+        "Zu diesem Titel wurden keine Meldungen gefunden. Fuer nicht-amerikanische Titel "
+        "ist die Nachrichtenlage der kostenlosen Quellen oft duenn."
+    )
+else:
+    st.caption(
+        "Die Einordnung stammt von einem Sprachmodell und ist eine Einschaetzung, keine "
+        "Messung. Jede Meldung ist mit Quelle und Link versehen - die Einordnung laesst "
+        "sich am Original nachlesen."
+    )
+    SYMBOLE = {"positiv": "🟢", "negativ": "🔴", "neutral": "⚪"}
+    for meldung in snapshot.news[:25]:
+        symbol = SYMBOLE.get(meldung.sentiment or "", "▫️")
+        einordnung = meldung.sentiment or "nicht eingeordnet"
         st.markdown(
-            f"**[{meldung.headline}]({meldung.url})**  \n"
-            f"*{meldung.source_name} · {meldung.published_at:%d.%m.%Y %H:%M}*"
+            f"{symbol} **[{meldung.headline}]({meldung.url})**  \n"
+            f"*{meldung.source_name} · {meldung.published_at:%d.%m.%Y %H:%M} · {einordnung}*"
         )
-        if meldung.summary:
-            st.caption(meldung.summary[:400])
+        if meldung.sentiment_rationale:
+            st.caption(f"Begruendung der Einordnung: {meldung.sentiment_rationale}")
+        elif meldung.summary:
+            st.caption(meldung.summary[:300])
         st.divider()
