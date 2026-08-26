@@ -31,24 +31,57 @@ dokumentiert:
 
 Voraussetzung: Python 3.11 oder neuer.
 
+### macOS und Linux – ein Befehl
+
 ```bash
-# 1. Repository holen
 git clone https://github.com/sebastianmelzl/aktienmonitor.git
 cd aktienmonitor
+./start.sh
+```
 
-# 2. Umgebung anlegen und Abhängigkeiten installieren
-#    (mit uv – schnell; alternativ python -m venv .venv && pip install -e ".[dev]")
-uv venv --python 3.11 .venv
-uv pip install -e ".[dev]"
+`start.sh` richtet beim ersten Lauf alles ein – virtuelle Umgebung,
+Abhängigkeiten, Konfigurationsdatei – und startet dann die App. Das dauert
+einmalig ein bis zwei Minuten. Jeder weitere Aufruf startet sofort.
 
-# 3. Konfiguration anlegen
+Anderer Port: `./start.sh 8502`
+
+### Windows
+
+```powershell
+git clone https://github.com/sebastianmelzl/aktienmonitor.git
+cd aktienmonitor
+python -m venv .venv
+.venv\Scripts\pip install -e ".[dev]"
+copy .env.example .env
+.venv\Scripts\streamlit run app.py
+```
+
+### Von Hand (alle Systeme)
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
 cp .env.example .env
-#    Die .env kann zunächst leer bleiben: ohne API-Schlüssel läuft die App
-#    vollständig über yfinance.
-
-# 4. Starten
 .venv/bin/streamlit run app.py
 ```
+
+Wer `uv` nutzt, ersetzt die ersten beiden Zeilen durch
+`uv venv --python 3.11 .venv && uv pip install -e ".[dev]"` – das ist deutlich
+schneller, aber nicht nötig.
+
+### Danach
+
+Streamlit schreibt die Adresse ins Terminal:
+
+```
+  Local URL: http://localhost:8501
+```
+
+**Diese Adresse im Browser aufrufen.** Das Terminal muss offen bleiben; beendet
+wird mit `Strg+C`.
+
+Die `.env` kann zunächst leer bleiben – ohne API-Schlüssel läuft die App
+vollständig über yfinance.
 
 Die App ist danach unter <http://localhost:8501> erreichbar. Beim ersten Start
 legt sie `data/aktienmonitor.db` an; Logs landen unter `logs/`. Beide
@@ -90,6 +123,7 @@ fehlerhafte Spaltenkonfiguration fällt sonst erst im Browser auf.
 ## Aufbau
 
 ```
+start.sh                    Einrichtung und Start in einem Befehl
 app.py                      Einstiegspunkt und Navigation
 views/                      Seiten der Oberfläche (kein Rechenkram)
   uebersicht.py             Der "Knopfdruck": Tabelle, Filter, CSV-Export
