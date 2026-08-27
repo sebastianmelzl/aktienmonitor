@@ -221,6 +221,27 @@ Positionsliste (Aufteilung), bei der fehlende Kurshistorien einzelner Titel
 das Gewicht der uebrigen fuer diesen Zeitraum neu normieren statt sie mit 0 zu
 werten.
 
+## Entscheidungstagebuch
+
+`storage/journal.py` (Tabelle `decision_journal`, Migration v3) haelt eigene
+Kauf-/Verkaufsentscheidungen fest: Ticker, Aktion, Datum, Kurs, Betrag,
+Stueckzahl, der Gesamtscore zum Eintragungszeitpunkt und eine **eigene**
+Begruendung. Anders als `score_history` schreibt sich hier nichts
+automatisch fort - ein Eintrag entsteht ausschliesslich durch Eingabe auf
+der Seite **Tagebuch**.
+
+Wichtig beim Aendern: die Begruendung ist die Einschaetzung des Nutzers zum
+Zeitpunkt der Entscheidung. Sie darf nicht nachtraeglich generiert oder von
+einem Sprachmodell verfasst werden - ein Tagebuch, das sich im Nachhinein
+selbst rechtfertigt, verfehlt seinen Zweck (Rueckschaufehler vermeiden).
+
+Die Seite vergleicht jede Entscheidung rueckblickend mit der Benchmark: die
+eigene Kursentwicklung misst vom eingetragenen Kurs zum aktuellen Kurs, die
+Referenz laeuft ueber `benchmark.compare.return_between` vom
+Entscheidungsdatum bis heute - bewusst zwei verschiedene Berechnungswege,
+weil der eigene Kurs eine tatsaechliche Transaktion ist und die Referenz nur
+ein hypothetischer Vergleich zum Schlusskurs jenes Tages.
+
 ## Backtest
 
 `backtest/technical.py` ist ebenfalls netzfrei. Er testet **ausschliesslich

@@ -35,8 +35,8 @@ class TestSeitenLaufen:
     @pytest.mark.parametrize(
         "seite",
         ["uebersicht.py", "watchlist.py", "detail.py", "vergleich.py",
-         "kandidaten.py", "vorschlaege.py", "anlagevorschlag.py", "backtest.py",
-         "datenquellen.py", "einstellungen.py"],
+         "kandidaten.py", "vorschlaege.py", "anlagevorschlag.py", "tagebuch.py",
+         "backtest.py", "datenquellen.py", "einstellungen.py"],
     )
     def test_seite_wirft_keine_ausnahme(self, seite):
         ergebnis = run_page(seite)

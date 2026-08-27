@@ -26,6 +26,7 @@ navigation = st.navigation(
         st.Page("views/vorschlaege.py", title="Vorschlaege", icon="🧭"),
         st.Page("views/vergleich.py", title="Vergleich", icon="⚖️"),
         st.Page("views/anlagevorschlag.py", title="Aufteilung", icon="🧮"),
+        st.Page("views/tagebuch.py", title="Tagebuch", icon="📓"),
         st.Page("views/backtest.py", title="Backtest", icon="⏮️"),
         st.Page("views/datenquellen.py", title="Datenquellen", icon="🔌"),
         st.Page("views/einstellungen.py", title="Einstellungen", icon="⚙️"),

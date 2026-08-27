@@ -133,6 +133,7 @@ views/                      Seiten der Oberfläche (kein Rechenkram)
   vorschlaege.py            Kandidaten aus dem Markt statt aus der Watchlist
   vergleich.py              2-5 Titel nebeneinander
   anlagevorschlag.py        Aufteilungsrechner für einen Betrag
+  tagebuch.py               Eigene Kauf-/Verkaufsentscheidungen, im Rückblick gegen die Benchmark
   backtest.py               Rollierender Test des technischen Teilscores, ohne Lookahead
   datenquellen.py           Verfügbarkeitsprüfung, Zugriffsprotokoll
   einstellungen.py          Gewichtung, Sektorvergleich, Cache

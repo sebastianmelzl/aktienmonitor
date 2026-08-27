@@ -108,6 +108,28 @@ MIGRATIONS: list[tuple[int, str]] = [
             ON score_history (ticker, recorded_at DESC);
         """,
     ),
+    (
+        3,
+        """
+        -- Entscheidungstagebuch: eigene Kauf-/Verkaufsentscheidungen samt
+        -- Begruendung. Entsteht nur durch eine Eingabe des Nutzers, nie
+        -- automatisch - anders als der Score-Verlauf.
+        CREATE TABLE IF NOT EXISTS decision_journal (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker              TEXT NOT NULL,
+            action              TEXT NOT NULL,
+            decided_at          TEXT NOT NULL,
+            price               REAL,
+            amount              REAL,
+            shares              REAL,
+            score_at_decision   REAL,
+            rationale           TEXT,
+            created_at          TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_journal_ticker_time
+            ON decision_journal (ticker, decided_at DESC);
+        """,
+    ),
 ]
 
 _init_lock = threading.Lock()

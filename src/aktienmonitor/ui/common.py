@@ -14,6 +14,7 @@ from ..providers.fetcher import StockDataService, StockSnapshot
 from ..scoring.definitions import DEFAULT_WEIGHTS
 from ..scoring.sector import DEFAULT_MIN_PEERS, SectorStatistics
 from ..storage.db import Database
+from ..storage.journal import DecisionJournal
 from ..storage.settings_store import SettingsStore
 from ..storage.watchlist import Watchlist
 
@@ -49,6 +50,10 @@ def get_watchlist() -> Watchlist:
 
 def get_settings() -> SettingsStore:
     return SettingsStore(get_database())
+
+
+def get_journal() -> DecisionJournal:
+    return DecisionJournal(get_database())
 
 
 def page_header(title: str, subtitle: str | None = None) -> None:
