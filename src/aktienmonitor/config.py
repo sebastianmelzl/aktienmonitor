@@ -92,6 +92,7 @@ class Config:
     anthropic_model: str
     db_path: Path
     log_level: str
+    benchmark_ticker: str = "EUNL.DE"
     ttl_seconds: dict[str, int] = field(default_factory=dict)
     rate_limit_per_min: dict[str, int] = field(default_factory=dict)
     retry_max_attempts: int = 4
@@ -124,6 +125,7 @@ def load_config(env_file: Path | None = None) -> Config:
         anthropic_model=(os.getenv("ANTHROPIC_MODEL") or "claude-opus-5").strip(),
         db_path=db_path,
         log_level=(os.getenv("AKTIENMONITOR_LOG_LEVEL") or "INFO").strip().upper(),
+        benchmark_ticker=(os.getenv("BENCHMARK_TICKER") or "EUNL.DE").strip() or "EUNL.DE",
         ttl_seconds={
             kind: _env_int(_TTL_ENV_VARS[kind], DEFAULT_TTL_SECONDS[kind]) for kind in DATA_KINDS
         },

@@ -6,6 +6,7 @@ import streamlit as st
 
 from aktienmonitor.formatting import NOT_AVAILABLE, format_change, german_number
 from aktienmonitor.scoring.engine import score_snapshot
+from aktienmonitor.ui.benchmark import render_comparison
 from aktienmonitor.ui.charts import INDICATOR_OPTIONS, price_chart
 from aktienmonitor.ui.common import (
     clear_sector_cache,
@@ -30,6 +31,7 @@ page_header("Detailansicht", "Kennzahlen, Chart und Analystenbild eines Titels")
 
 watchlist = get_watchlist()
 service = get_service()
+app_config = get_config()
 entries = watchlist.all()
 
 if not entries:
@@ -143,6 +145,16 @@ if figure is None:
 else:
     st.plotly_chart(figure, width="stretch")
 
+# --- Benchmark-Vergleich -------------------------------------------------------
+st.subheader("Vergleich mit einer Benchmark")
+st.caption(
+    f"Wie haette sich derselbe Betrag im selben Zeitraum in "
+    f"**{app_config.benchmark_ticker}** entwickelt? Zum Einordnen, nicht zum Vergleichen "
+    "der Scores."
+)
+benchmark_bars = service.get_benchmark_bars(cache_only=not refresh_clicked)
+render_comparison(ticker, snapshot.bars, app_config.benchmark_ticker, benchmark_bars)
+
 # --- Kennzahlen --------------------------------------------------------------
 st.subheader("Kennzahlen")
 st.caption(
@@ -206,7 +218,6 @@ with tab_analysten:
 # --- Schlagzeilen und Sentiment ----------------------------------------------
 st.subheader("Schlagzeilen")
 
-app_config = get_config()
 unclassified = [m for m in snapshot.news if not m.sentiment]
 if not app_config.has_anthropic and unclassified:
     # Nur melden, wenn tatsaechlich etwas unbewertet bleibt - bereits

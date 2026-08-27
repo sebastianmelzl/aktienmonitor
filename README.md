@@ -158,6 +158,11 @@ src/aktienmonitor/
     definitions.py          Das Regelwerk: Kennzahl, Gewicht, Bewertungsart
     sector.py               Perzentilrang innerhalb der Branche
     engine.py               Teilscores, Gesamtscore, Beitrags-Aufschluesselung
+    allocation.py           Aufteilungsrechner mit Positions-/Branchendeckel
+  costs/                    Trade-Republic-Kosten und deutsche Kapitalertragsteuer
+    model.py                Ordergebühren, Spread, KESt/Soli, Sparerpauschbetrag
+  benchmark/                Renditevergleich gegen einen Referenz-ETF (Vorgabe: EUNL.DE)
+    compare.py              Kursrenditen über mehrere Zeiträume, ohne Netz und ohne UI
   storage/                  SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/                       Formatierung, Charts, Tabellenlogik, Score-Anzeige, Zugang
 tests/                      Unit-Tests mit fixen Testdaten

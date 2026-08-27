@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 import pandas as pd
 import streamlit as st
 
-from aktienmonitor.formatting import NOT_AVAILABLE, german_number
+from aktienmonitor.benchmark.compare import total_return
+from aktienmonitor.formatting import NOT_AVAILABLE, format_change, german_number
 from aktienmonitor.scoring.engine import score_snapshot
 from aktienmonitor.storage.history import entry_from
 from aktienmonitor.ui.common import (
@@ -156,7 +157,7 @@ result = apply_filters(rows, criteria)
 
 # --- Kopfzeile ---------------------------------------------------------------
 last_refresh = store.get(LAST_REFRESH_KEY, None)
-kpi = st.columns(4)
+kpi = st.columns(5)
 kpi[0].metric("Titel im Universum", len(rows))
 kpi[1].metric("Nach Filter", len(result.rows))
 scored_values = [z["score_total"] for z in result.rows if z["score_total"] is not None]
@@ -177,6 +178,16 @@ if isinstance(last_refresh, str):
         kpi[3].metric("Letzte Aktualisierung", NOT_AVAILABLE)
 else:
     kpi[3].metric("Letzte Aktualisierung", "noch nie")
+
+benchmark_return = total_return(
+    service.get_benchmark_bars(cache_only=True), trading_days=252
+)
+kpi[4].metric(
+    f"Benchmark 1J ({config.benchmark_ticker})",
+    format_change(benchmark_return),
+    help="Kursrendite des Referenz-ETF ueber die letzten 252 Handelstage - zur Einordnung "
+         "des mittleren Scores, kein Bestandteil der Berechnung.",
+)
 
 if without_data:
     st.warning(

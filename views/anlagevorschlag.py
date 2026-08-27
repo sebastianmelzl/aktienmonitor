@@ -13,7 +13,9 @@ from aktienmonitor.scoring.allocation import (
     allocate,
 )
 from aktienmonitor.scoring.engine import score_snapshot
+from aktienmonitor.ui.benchmark import render_portfolio_comparison
 from aktienmonitor.ui.common import (
+    get_config,
     get_score_weights,
     get_sector_statistics,
     get_service,
@@ -182,6 +184,18 @@ with col_rules:
     for rule in constraints.describe():
         st.markdown(f"- {rule}")
     st.caption(f"Verteilung: {method}")
+
+# --- Benchmark-Vergleich -------------------------------------------------------
+app_config = get_config()
+st.subheader("Vergleich mit einer Benchmark")
+st.caption(
+    f"Was haette derselbe Betrag im selben Zeitraum in **{app_config.benchmark_ticker}** "
+    "erzielt? Auf Basis der historischen Kursrenditen der vorgeschlagenen Positionen, "
+    "gewichtet nach Zielanteil."
+)
+benchmark_bars = service.get_benchmark_bars(cache_only=True)
+weighted_bars = [(item.weight, snapshots[item.ticker].bars) for item in result.items]
+render_portfolio_comparison(app_config.benchmark_ticker, benchmark_bars, weighted_bars)
 
 # --- Ausgeschlossene ---------------------------------------------------------
 if result.excluded:

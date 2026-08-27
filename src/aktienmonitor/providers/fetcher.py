@@ -304,6 +304,25 @@ class StockDataService:
             progress(len(eindeutig), len(eindeutig), "")
         return result
 
+    def get_benchmark_bars(
+        self, *, force_refresh: bool = False, cache_only: bool = False, history_period: str = "5y"
+    ) -> list[dict]:
+        """Kurshistorie des in der Konfiguration hinterlegten Referenz-ETF.
+
+        Laeuft ueber denselben Cache/Token-Bucket wie jeder andere Titel - ein
+        Vergleich gegen die Benchmark loest also keinen zusaetzlichen Abruf pro
+        beobachtetem Titel aus, solange der Cache noch gueltig ist.
+        """
+        result = self.yfinance.price_history(
+            self.config.benchmark_ticker,
+            period=history_period,
+            force_refresh=force_refresh,
+            cache_only=cache_only,
+        )
+        if not result.ok or not isinstance(result.data, dict):
+            return []
+        return result.data.get("bars", [])
+
     def get_news(
         self, ticker: str, *, force_refresh: bool = False, cache_only: bool = False
     ) -> list[NewsItem]:

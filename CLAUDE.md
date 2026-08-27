@@ -65,6 +65,8 @@ src/aktienmonitor/
   sentiment/      Schlagzeilen-Einordnung
   narrative/      Faktenblatt und textliche Begruendung je Kandidat
   screening/      Suchprofile fuer die marktweite Vorauswahl (ohne yfinance)
+  costs/          Trade-Republic-Kosten und deutsche Kapitalertragsteuer
+  benchmark/      Renditevergleich gegen einen Referenz-ETF
   formatting.py   Zahlformatierung - bewusst auf Paketebene, nicht unter ui/
   storage/        SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/             Formatierung, Charts, Tabellenlogik, Zugang
@@ -181,6 +183,43 @@ Dinge, die man beim Aendern nicht verlieren darf:
 Der Rechner beurteilt nichts. Er kennt weder Korrelationen noch die uebrige
 Vermoegenslage; das steht so auf der Seite.
 
+## Kosten und Steuern (Trade Republic)
+
+`costs/model.py` ist netzfrei und UI-frei wie `metrics/`/`scoring/`. Zwei
+Klassen, die getrennt bleiben:
+
+- **`BrokerCosts`** bildet die Orderkosten ab: 1 EUR Fremdkostenpauschale je
+  Order (Sparplaene kostenlos), plus die halbe Geld-Brief-Spanne als Naeherung
+  fuer den Spread. `cost_share` macht sichtbar, dass viele kleine Positionen
+  ueberproportional teuer sind - das ist der Kernpunkt fuer Einsteiger mit
+  kleinen Betraegen.
+- **`TaxSettings`/`tax_on_gain`** bilden die deutsche Kapitalertragsteuer ab:
+  25 % KESt plus Soli (effektiv 26,375 % ohne Kirchensteuer), Sparerpauschbetrag
+  (1.000 EUR ledig / 2.000 EUR zusammen veranlagt) vor der Teilfreistellung
+  abgezogen, danach 30 % Teilfreistellung fuer Aktienfonds/ETFs nach §20 InvStG.
+
+`break_even_return` rechnet Hin- und Rueckweg (Kauf plus Verkauf) zusammen -
+eine Position muss beide Ordergebuehren erst wieder einspielen, bevor ueberhaupt
+ein Gewinn entsteht.
+
+## Benchmark-Vergleich
+
+`benchmark/compare.py` ist ebenfalls netzfrei und UI-frei. Er stellt einem
+Titel eine Referenz gegenueber - Vorgabe: `EUNL.DE` (iShares Core MSCI World,
+Xetra), ueber `BENCHMARK_TICKER` änderbar. Die Kurshistorie kommt ueber
+`StockDataService.get_benchmark_bars()` und laeuft durch denselben
+Cache/Token-Bucket wie jeder andere Titel.
+
+Eine Einschraenkung wird ueberall mitgefuehrt, wo der Vergleich erscheint:
+verglichen werden **Kursrenditen**, keine um Ausschuettungen bereinigten. Bei
+einem ausschuettenden Referenz-ETF verzerrt das zulasten der Benchmark - die
+tatsaechliche Differenz faellt real etwas kleiner aus. `ui/benchmark.py`
+buendelt die Darstellung: `render_comparison` fuer einen einzelnen Titel
+(Detailansicht), `render_portfolio_comparison` fuer eine gewichtete
+Positionsliste (Aufteilung), bei der fehlende Kurshistorien einzelner Titel
+das Gewicht der uebrigen fuer diesen Zeitraum neu normieren statt sie mit 0 zu
+werten.
+
 ## Sentiment
 
 `sentiment/classifier.py` ordnet Schlagzeilen über die Anthropic-API ein
@@ -232,6 +271,9 @@ sind damit vor allem:
 - welche Finnhub-Endpunkte der Schlüssel des Nutzers tatsächlich freigibt
 - ob `output_config.format` mit dem Sentiment-Schema die erwartete Antwort liefert
 - ob das Docker-Abbild baut (kein Docker-Daemon in der Entwicklungsumgebung)
+- ob `EUNL.DE` unter yfinance tatsächlich eine Kurshistorie liefert — der
+  Benchmark-Vergleich (`benchmark/`) ist nur gegen synthetische Kursreihen
+  getestet
 
 Erster sinnvoller Schritt lokal: **Seite „Datenquellen" → „Check jetzt
 ausführen"**. Sie ruft jeden Endpunkt einmal auf und schreibt fest, was
