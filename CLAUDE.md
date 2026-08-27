@@ -67,6 +67,7 @@ src/aktienmonitor/
   screening/      Suchprofile fuer die marktweite Vorauswahl (ohne yfinance)
   costs/          Trade-Republic-Kosten und deutsche Kapitalertragsteuer
   benchmark/      Renditevergleich gegen einen Referenz-ETF
+  backtest/       Rollierender Test des technischen Teilscores ohne Lookahead
   formatting.py   Zahlformatierung - bewusst auf Paketebene, nicht unter ui/
   storage/        SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/             Formatierung, Charts, Tabellenlogik, Zugang
@@ -219,6 +220,33 @@ buendelt die Darstellung: `render_comparison` fuer einen einzelnen Titel
 Positionsliste (Aufteilung), bei der fehlende Kurshistorien einzelner Titel
 das Gewicht der uebrigen fuer diesen Zeitraum neu normieren statt sie mit 0 zu
 werten.
+
+## Backtest
+
+`backtest/technical.py` ist ebenfalls netzfrei. Er testet **ausschliesslich
+den technischen Teilscore** - das ist eine bewusste Einschraenkung, keine
+Vereinfachung aus Bequemlichkeit: Fundamental-, Analysten- und
+Sentiment-Kennzahlen liegen aus kostenlosen Quellen nicht als Zeitreihe vor
+(yfinance liefert nur den *aktuellen* Bilanzstand). Ein Test dieser
+Teilscores wuerde entweder heutiges Wissen in die Vergangenheit projizieren
+(Lookahead) oder Werte erfinden - beides verletzt die zentrale Regel des
+Projekts. Der technische Teilscore laesst sich dagegen an jedem Stichtag
+ausschliesslich aus vorangegangenen Kursen neu berechnen.
+
+`walk_forward()` berechnet den Teilscore an jedem ``step_days``-ten
+Handelstag ausschliesslich aus ``bars`` bis einschliesslich dieses Tages und
+misst danach die tatsaechliche Rendite der folgenden ``horizon_days``
+Handelstage. **Kein Lookahead ist die wichtigste Eigenschaft dieses Moduls**
+und hat einen eigenen Test (`test_backtest.py::TestKeinLookahead`), der
+prueft, dass ein nachtraeglich an dieselbe Kursreihe angehaengter
+Kursschock die bereits berechneten frueheren Stichtage unveraendert laesst.
+
+`LIMITATIONS` fasst zusammen, was trotzdem ungeloest bleibt: Survivorship
+Bias (nur die heutige Watchlist, keine historisch ausgeschiedenen Titel),
+kleine und bei kurzem `step_days` ueberlappende Stichproben, keine
+Transaktionskosten oder Steuern, keine Garantie fuer die Zukunft. Diese
+Liste erscheint woertlich als Warnhinweis auf der Backtest-Seite - sie darf
+beim Aendern nicht stillschweigend verkuerzt werden.
 
 ## Sentiment
 

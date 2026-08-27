@@ -133,6 +133,7 @@ views/                      Seiten der Oberfläche (kein Rechenkram)
   vorschlaege.py            Kandidaten aus dem Markt statt aus der Watchlist
   vergleich.py              2-5 Titel nebeneinander
   anlagevorschlag.py        Aufteilungsrechner für einen Betrag
+  backtest.py               Rollierender Test des technischen Teilscores, ohne Lookahead
   datenquellen.py           Verfügbarkeitsprüfung, Zugriffsprotokoll
   einstellungen.py          Gewichtung, Sektorvergleich, Cache
 src/aktienmonitor/
@@ -163,6 +164,8 @@ src/aktienmonitor/
     model.py                Ordergebühren, Spread, KESt/Soli, Sparerpauschbetrag
   benchmark/                Renditevergleich gegen einen Referenz-ETF (Vorgabe: EUNL.DE)
     compare.py              Kursrenditen über mehrere Zeiträume, ohne Netz und ohne UI
+  backtest/                 Rollierender Test des technischen Teilscores
+    technical.py            Score und Folgerendite je Stichtag, ohne Lookahead
   storage/                  SQLite: Schema, Cache, Watchlist, Einstellungen
   ui/                       Formatierung, Charts, Tabellenlogik, Score-Anzeige, Zugang
 tests/                      Unit-Tests mit fixen Testdaten
