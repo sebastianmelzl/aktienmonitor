@@ -8,10 +8,12 @@ nach dem fundamentalen Teilscore.
 
 from __future__ import annotations
 
+import textwrap
+
 import pandas as pd
 import streamlit as st
 
-from aktienmonitor.formatting import german_number
+from aktienmonitor.formatting import NOT_AVAILABLE, german_number
 from aktienmonitor.narrative.briefing import build_briefing
 from aktienmonitor.scoring.allocation import AllocationConstraints, AllocationMethod, allocate
 from aktienmonitor.scoring.engine import score_snapshot
@@ -26,12 +28,12 @@ from aktienmonitor.screening.profiles import (
 )
 from aktienmonitor.ui.benchmark import render_portfolio_comparison
 from aktienmonitor.ui.common import (
+    DISCLAIMER,
     coverage_caption,
     get_config,
     get_score_weights,
     get_service,
     metrics_table,
-    page_header,
 )
 from aktienmonitor.ui.costs import render_allocation_costs
 
@@ -42,11 +44,341 @@ ANALYSE_LIMIT = 15
 
 RESULT_KEY = "_investieren_ergebnis"
 
-page_header(
-    "Investieren",
-    f"Betrag eingeben - die App sucht am Markt und schlaegt {ANZAHL_TITEL} Titel "
-    "nach Fundamentalanalyse vor",
+
+def _inject_style() -> None:
+    """Eigenes, dunkelblau-goldenes Erscheinungsbild nur fuer diese Seite.
+
+    Reine CSS-Ueberlagerung per ``st.markdown`` - sie wirkt ausschliesslich
+    waehrend diese Seite aktiv ist. Beim Wechsel auf eine andere Seite baut
+    Streamlit das Skript neu auf, ohne dieses ``<style>`` erneut einzufuegen;
+    die uebrigen Seiten bleiben unangetastet.
+    """
+    st.html(
+        textwrap.dedent(
+            """
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+              rel="stylesheet">
+        <style>
+        :root {
+            --im-bg: #05070d;
+            --im-bg-2: #0a1120;
+            --im-surface: #0f1830;
+            --im-surface-2: #131f3d;
+            --im-border: rgba(201, 162, 39, 0.24);
+            --im-border-strong: rgba(201, 162, 39, 0.55);
+            --im-gold: #c9a227;
+            --im-gold-light: #ecd18a;
+            --im-gold-soft: rgba(201, 162, 39, 0.12);
+            --im-text: #f2efe6;
+            --im-text-muted: #97a2bd;
+            --im-text-faint: #6b7590;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            background:
+                radial-gradient(1200px 600px at 12% -10%, rgba(201,162,39,0.10), transparent 60%),
+                radial-gradient(1000px 700px at 100% 0%, rgba(30,58,110,0.35), transparent 55%),
+                linear-gradient(180deg, var(--im-bg) 0%, var(--im-bg-2) 100%);
+        }
+        [data-testid="stHeader"] { background: transparent; }
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #070b16 0%, #0a1120 100%);
+            border-right: 1px solid var(--im-border);
+        }
+        section[data-testid="stSidebar"] * { color: var(--im-text) !important; }
+
+        [data-testid="stMainBlockContainer"] {
+            font-family: 'Inter', sans-serif;
+            color: var(--im-text);
+            padding-top: 2.5rem;
+            max-width: 1180px;
+        }
+        [data-testid="stMainBlockContainer"] h1,
+        [data-testid="stMainBlockContainer"] h2,
+        [data-testid="stMainBlockContainer"] h3 {
+            font-family: 'Sora', sans-serif;
+            color: var(--im-text);
+            letter-spacing: -0.01em;
+        }
+        [data-testid="stMainBlockContainer"] p,
+        [data-testid="stMainBlockContainer"] li,
+        [data-testid="stMainBlockContainer"] span,
+        [data-testid="stMainBlockContainer"] label { color: var(--im-text); }
+        [data-testid="stMainBlockContainer"] small,
+        [data-testid="stCaptionContainer"] { color: var(--im-text-muted) !important; }
+        [data-testid="stMainBlockContainer"] a { color: var(--im-gold-light); }
+        hr { border-color: var(--im-border); }
+
+        /* --- Hero --------------------------------------------------------- */
+        .im-hero { padding: 0.25rem 0 1.75rem 0; }
+        .im-eyebrow {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.28em;
+            color: var(--im-gold);
+            text-transform: uppercase;
+            margin-bottom: 0.6rem;
+        }
+        .im-title {
+            font-family: 'Sora', sans-serif;
+            font-weight: 800;
+            font-size: 2.6rem;
+            line-height: 1.1;
+            margin: 0 0 0.6rem 0;
+            background: linear-gradient(100deg, #ffffff 0%, var(--im-gold-light) 55%, var(--im-gold) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .im-subtitle {
+            font-size: 1.05rem;
+            color: var(--im-text-muted);
+            max-width: 640px;
+            margin: 0;
+        }
+        .im-divider {
+            height: 1px;
+            margin: 1.75rem 0;
+            background: linear-gradient(90deg, var(--im-border-strong), transparent 70%);
+            border: none;
+        }
+        .im-section-label {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--im-gold);
+            margin: 0 0 0.75rem 0;
+        }
+
+        /* --- Widgets -------------------------------------------------------- */
+        [data-testid="stNumberInputContainer"],
+        [data-testid="stTextInputRootElement"] {
+            background-color: var(--im-surface) !important;
+            border: 1px solid var(--im-border) !important;
+            border-radius: 10px !important;
+        }
+        [data-testid="stNumberInputField"],
+        [data-testid="stTextInput"] input {
+            background-color: transparent !important;
+            color: var(--im-text) !important;
+        }
+        [data-testid="stNumberInputStepDown"], [data-testid="stNumberInputStepUp"] {
+            color: var(--im-text-muted) !important;
+        }
+        [data-testid="stMultiSelect"] .react-aria-ComboBox > div,
+        [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+            background-color: var(--im-surface) !important;
+            border: 1px solid var(--im-border) !important;
+            border-radius: 10px !important;
+        }
+        [data-testid="stMultiSelect"] input { color: var(--im-text) !important; }
+        [data-testid="stMultiSelectTagsContainer"] span[data-tag] {
+            background-color: var(--im-gold-soft) !important;
+            border: 1px solid var(--im-border-strong) !important;
+            color: var(--im-gold-light) !important;
+            border-radius: 999px !important;
+        }
+        [data-testid="stWidgetLabel"] p {
+            color: var(--im-text-muted) !important;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        [data-testid="stRadioOption"] { color: var(--im-text) !important; }
+        [data-testid="stRadioOption"][data-selected="true"] {
+            background: var(--im-gold-soft);
+            border-radius: 999px;
+        }
+        [data-testid="stRadioOption"] > div > div > div {
+            border-color: var(--im-border-strong) !important;
+        }
+        [data-testid="stRadioOption"][data-selected="true"] > div > div > div {
+            border-color: var(--im-gold) !important;
+        }
+        [data-testid="stRadioOption"][data-selected="true"] > div > div > div > div {
+            background-color: var(--im-gold) !important;
+        }
+
+        [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton"] {
+            background: linear-gradient(135deg, var(--im-gold) 0%, #a9820f 100%) !important;
+            color: #0a0e1a !important;
+            font-weight: 700;
+            font-family: 'Sora', sans-serif;
+            border: none !important;
+            border-radius: 999px !important;
+            padding: 0.6rem 1.6rem !important;
+            box-shadow: 0 8px 24px -8px rgba(201, 162, 39, 0.55);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton"]:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px -8px rgba(201, 162, 39, 0.7);
+            color: #0a0e1a !important;
+        }
+        [data-testid="stMainBlockContainer"] button[data-testid^="stBaseButton"] p {
+            color: #0a0e1a !important;
+        }
+
+        /* --- Metrics, expanders, alerts, progress --------------------------- */
+        [data-testid="stMetric"] {
+            background: linear-gradient(160deg, var(--im-surface) 0%, var(--im-surface-2) 100%);
+            border: 1px solid var(--im-border);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+        }
+        [data-testid="stMetricLabel"] {
+            color: var(--im-text-muted) !important;
+            font-size: 0.72rem !important;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        [data-testid="stMetricValue"] {
+            color: var(--im-gold-light) !important;
+            font-family: 'Sora', sans-serif;
+        }
+
+        [data-testid="stExpander"] {
+            background: var(--im-surface);
+            border: 1px solid var(--im-border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        [data-testid="stExpander"] summary { color: var(--im-text) !important; }
+        [data-testid="stExpander"] summary:hover { color: var(--im-gold-light) !important; }
+
+        [data-testid="stAlertContainer"] {
+            border-radius: 10px !important;
+            overflow: hidden;
+        }
+        [data-testid="stAlertContentInfo"],
+        [data-testid="stAlertContentWarning"],
+        [data-testid="stAlertContentError"],
+        [data-testid="stAlertContentSuccess"] {
+            background: var(--im-surface) !important;
+            border: 1px solid var(--im-border) !important;
+            border-left: 3px solid var(--im-gold) !important;
+            border-radius: 10px !important;
+            color: var(--im-text) !important;
+        }
+        [data-testid="stAlertContentInfo"] p,
+        [data-testid="stAlertContentWarning"] p,
+        [data-testid="stAlertContentError"] p,
+        [data-testid="stAlertContentSuccess"] p { color: var(--im-text) !important; }
+
+        [data-testid="stProgress"] div[role="progressbar"] > div {
+            background: linear-gradient(90deg, var(--im-gold) 0%, var(--im-gold-light) 100%) !important;
+        }
+        [data-testid="stProgress"] { background-color: var(--im-surface-2) !important; border-radius: 999px; }
+
+        [data-testid="stDataFrame"] {
+            border: 1px solid var(--im-border) !important;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* --- Eigene Tabelle -------------------------------------------------- */
+        .im-table-wrap {
+            border: 1px solid var(--im-border);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+        table.im-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+        table.im-table th {
+            font-family: 'Sora', sans-serif;
+            text-align: left;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--im-gold);
+            background: var(--im-surface-2);
+            padding: 0.7rem 0.9rem;
+            border-bottom: 1px solid var(--im-border);
+        }
+        table.im-table td {
+            padding: 0.65rem 0.9rem;
+            color: var(--im-text);
+            border-bottom: 1px solid rgba(201,162,39,0.08);
+        }
+        table.im-table tbody tr:hover { background: rgba(201,162,39,0.06); }
+        table.im-table tbody tr:last-child td { border-bottom: none; }
+        .im-ticker { font-weight: 700; color: var(--im-gold-light); font-family: 'Sora', sans-serif; }
+        .im-muted { color: var(--im-text-muted); }
+        .im-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .im-bar {
+            position: relative;
+            width: 100%;
+            min-width: 90px;
+            height: 8px;
+            background: var(--im-surface-2);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .im-bar-fill {
+            position: absolute; left: 0; top: 0; bottom: 0;
+            background: linear-gradient(90deg, #8a6d16, var(--im-gold) 60%, var(--im-gold-light));
+            border-radius: 999px;
+        }
+        .im-bar-label { font-size: 0.78rem; color: var(--im-text-muted); margin-left: 0.4rem; }
+        </style>
+        """
+        )
+    )
+
+
+def _score_bar(value: float | None) -> str:
+    if value is None:
+        return '<span class="im-muted">n/a</span>'
+    wert = max(0.0, min(100.0, value))
+    return (
+        '<div style="display:flex;align-items:center;">'
+        f'<div class="im-bar"><div class="im-bar-fill" style="width:{wert:.0f}%"></div></div>'
+        f'<span class="im-bar-label">{wert:.0f}</span></div>'
+    )
+
+
+def _render_table(rows: list[dict], columns: list[str]) -> None:
+    """Rendert eine schlicht gehaltene HTML-Tabelle im Seitendesign.
+
+    ``st.dataframe`` nutzt ein eigenes, canvasbasiertes Raster, das sich per
+    CSS nicht umfaerben laesst - fuer die zentrale Ergebnistabelle dieser
+    Seite wird deshalb reines HTML gerendert, das vollstaendig im Griff ist.
+    """
+    kopf = "".join(f"<th>{col}</th>" for col in columns)
+    body = ""
+    for row in rows:
+        klassen = row.get("_cls", {})
+        zellen = "".join(
+            f'<td class="{klassen.get(col, "")}">{row[col]}</td>' for col in columns
+        )
+        body += f"<tr>{zellen}</tr>"
+    st.markdown(
+        f'<div class="im-table-wrap"><table class="im-table">'
+        f"<thead><tr>{kopf}</tr></thead><tbody>{body}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
+
+
+_inject_style()
+
+st.markdown(
+    textwrap.dedent(
+        f"""
+    <div class="im-hero">
+        <div class="im-eyebrow">Vermoegensaufbau</div>
+        <h1 class="im-title">Investieren</h1>
+        <p class="im-subtitle">Betrag eingeben – die App durchsucht den Markt und schlaegt
+        {ANZAHL_TITEL} Titel nach Fundamentalanalyse vor.</p>
+    </div>
+    """
+    ),
+    unsafe_allow_html=True,
 )
+st.info(DISCLAIMER, icon="ℹ️")
 st.warning(
     "**Keine Anlageempfehlung.** Ausgewaehlt wird nach dem fundamentalen Teilscore - "
     "Schwellen, die als Konvention gesetzt und nicht auf Prognosekraft geprueft wurden. "
@@ -54,6 +386,7 @@ st.warning(
     "Wahrscheinlichkeit auch Zufall statt Signal. Die Entscheidung triffst du.",
     icon="⚠️",
 )
+st.markdown('<hr class="im-divider">', unsafe_allow_html=True)
 
 service = get_service()
 config = get_config()
@@ -180,7 +513,7 @@ if not result.has_items:
     st.stop()
 
 # --- Ergebnis ------------------------------------------------------------------
-st.subheader("Vorschlag")
+st.markdown('<p class="im-section-label">Vorschlag</p>', unsafe_allow_html=True)
 kpi = st.columns(4)
 kpi[0].metric("Positionen", len(result.items))
 kpi[1].metric("Verteilt", german_number(result.invested, 2))
@@ -190,7 +523,7 @@ kpi[3].metric("Branchen", len(result.sector_shares))
 scored_by_ticker = {snap.ticker: scored for snap, scored in daten["top"]}
 snapshot_by_ticker = {snap.ticker: snap for snap, _ in daten["top"]}
 
-tabelle = pd.DataFrame(
+csv_quelle = pd.DataFrame(
     [
         {
             "Ticker": item.ticker,
@@ -212,54 +545,63 @@ tabelle = pd.DataFrame(
         for item in result.items
     ]
 )
-st.dataframe(
-    tabelle, width="stretch", hide_index=True,
-    column_config={
-        "Fundamental-Score": st.column_config.ProgressColumn(
-            format="%.0f", min_value=0, max_value=100
-        ),
-        "Gesamtscore": st.column_config.NumberColumn(format="%.0f"),
-        "Anteil %": st.column_config.ProgressColumn(
-            format="%.1f", min_value=0, max_value=float(max(tabelle["Anteil %"].max(), 1))
-        ),
-        "Zielbetrag": st.column_config.NumberColumn(format="localized"),
-        "Kurs": st.column_config.NumberColumn(format="localized"),
-        "Betrag": st.column_config.NumberColumn(format="localized"),
-    },
+
+_render_table(
+    [
+        {
+            "Ticker": f'<span class="im-ticker">{item.ticker}</span>',
+            "Name": f'{item.name}<br><span class="im-muted">{item.sector}</span>',
+            "Fundamental": _score_bar(scored_by_ticker[item.ticker].categories["fundamental"].score),
+            "Gesamt": (
+                f"{scored_by_ticker[item.ticker].total:.0f}"
+                if scored_by_ticker[item.ticker].is_available else '<span class="im-muted">n/a</span>'
+            ),
+            "Anteil": f"{item.weight * 100.0:.1f} %",
+            "Kurs": german_number(item.price, 2) if item.price else NOT_AVAILABLE,
+            "Stueck": str(item.shares),
+            "Betrag": german_number(item.invested_amount, 2),
+            "_cls": {"Gesamt": "im-num", "Anteil": "im-num", "Kurs": "im-num",
+                     "Stueck": "im-num", "Betrag": "im-num"},
+        }
+        for item in result.items
+    ],
+    ["Ticker", "Name", "Fundamental", "Gesamt", "Anteil", "Kurs", "Stueck", "Betrag"],
 )
 st.download_button(
     "Vorschlag als CSV",
-    data=tabelle.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig"),
+    data=csv_quelle.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig"),
     file_name="investieren.csv",
     mime="text/csv",
 )
 
 if result.excluded:
     with st.expander(f"Nicht beruecksichtigt ({len(result.excluded)})"):
-        st.dataframe(
-            pd.DataFrame(result.excluded, columns=["Ticker", "Grund"]),
-            width="stretch", hide_index=True,
+        _render_table(
+            [{"Ticker": f'<span class="im-ticker">{t}</span>', "Grund": grund}
+             for t, grund in result.excluded],
+            ["Ticker", "Grund"],
         )
 
 # --- Fundamentalanalyse je Titel ------------------------------------------------
-st.subheader("Fundamentalanalyse je Titel")
+st.markdown('<p class="im-section-label">Fundamentalanalyse je Titel</p>', unsafe_allow_html=True)
 for item in result.items:
     snap = snapshot_by_ticker[item.ticker]
     scored = scored_by_ticker[item.ticker]
     with st.expander(f"{item.ticker} – {item.name}"):
         st.caption(coverage_caption(snap.fundamental, "Fundamentaldaten"))
         st.progress(snap.fundamental.coverage)
-        st.dataframe(
-            metrics_table(snap.fundamental, snap.currency), width="stretch", hide_index=True
+        fundamental_df = metrics_table(snap.fundamental, snap.currency)
+        _render_table(
+            fundamental_df.to_dict("records"), list(fundamental_df.columns)
         )
         with st.expander("Vollstaendiges Faktenblatt (alle Teilscores)"):
             st.text(build_briefing(snap, scored))
 
 # --- Kosten und Benchmark --------------------------------------------------------
-st.subheader("Kaufkosten (Trade Republic)")
+st.markdown('<p class="im-section-label">Kaufkosten (Trade Republic)</p>', unsafe_allow_html=True)
 render_allocation_costs(result.items)
 
-st.subheader("Vergleich mit einer Benchmark")
+st.markdown('<p class="im-section-label">Vergleich mit einer Benchmark</p>', unsafe_allow_html=True)
 st.caption(
     f"Was haette derselbe Betrag im selben Zeitraum in **{config.benchmark_ticker}** "
     "erzielt? Auf Basis der historischen Kursrenditen der vorgeschlagenen Positionen, "
