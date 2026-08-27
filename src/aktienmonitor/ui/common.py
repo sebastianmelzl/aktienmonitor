@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from ..config import Config, load_config
+from ..costs.model import TaxSettings
 from ..formatting import format_metric
 from ..logging_setup import setup_logging
 from ..models import MetricSet
@@ -153,6 +154,21 @@ def get_sector_statistics(
 def clear_sector_cache() -> None:
     """Erzwingt den Neuaufbau der Sektorstatistik beim naechsten Zugriff."""
     _universe_sector_data.clear()
+
+
+TAX_SETTINGS_KEY = "tax_settings"
+
+
+def get_tax_settings() -> TaxSettings:
+    """Gespeicherte persoenliche Steuerangaben, sonst ledig ohne Kirchensteuer."""
+    stored = get_settings().get(TAX_SETTINGS_KEY, None)
+    if not isinstance(stored, dict):
+        return TaxSettings()
+    return TaxSettings(
+        church_tax_rate=float(stored.get("church_tax_rate", 0.0)),
+        joint_assessment=bool(stored.get("joint_assessment", False)),
+        allowance_used=float(stored.get("allowance_used", 0.0)),
+    )
 
 
 def get_score_weights() -> dict[str, float]:

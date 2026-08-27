@@ -6,15 +6,19 @@ import pandas as pd
 import streamlit as st
 
 from aktienmonitor.config import DATA_KINDS, DEFAULT_TTL_SECONDS
+from aktienmonitor.costs.model import CHURCH_TAX_RATES, BrokerCosts, TaxSettings, tax_on_gain
+from aktienmonitor.formatting import german_number
 from aktienmonitor.scoring.definitions import CATEGORY_LABELS, DEFAULT_WEIGHTS
 from aktienmonitor.scoring.sector import DEFAULT_MIN_PEERS
 from aktienmonitor.ui.common import (
     MIN_PEERS_SETTING_KEY,
+    TAX_SETTINGS_KEY,
     WEIGHTS_SETTING_KEY,
     clear_sector_cache,
     get_config,
     get_service,
     get_settings,
+    get_tax_settings,
     get_watchlist,
     page_header,
 )
@@ -38,8 +42,8 @@ store = get_settings()
 config = get_config()
 service = get_service()
 
-tab_gewichte, tab_sektor, tab_cache, tab_quellen = st.tabs(
-    ["Gewichtung", "Sektorvergleich", "Cache", "Datenquellen"]
+tab_gewichte, tab_sektor, tab_steuer, tab_cache, tab_quellen = st.tabs(
+    ["Gewichtung", "Sektorvergleich", "Kosten & Steuer", "Cache", "Datenquellen"]
 )
 
 with tab_gewichte:
@@ -118,6 +122,93 @@ with tab_sektor:
         if st.button("Sektordaten neu aufbauen"):
             clear_sector_cache()
             st.rerun()
+
+with tab_steuer:
+    st.subheader("Handelskosten")
+    tr = BrokerCosts()
+    st.write(
+        f"Angenommen wird **{tr.name}**: {german_number(tr.order_fee, 2)} EUR "
+        f"Fremdkostenpauschale je Order (Sparplaene kostenlos), plus die halbe angenommene "
+        f"Handelsspanne von {tr.spread_bps:.0f} Basispunkten. Diese Annahmen fliessen in "
+        "die Kostenanzeige auf der Seite **Aufteilung** ein."
+    )
+
+    st.subheader("Persoenliche Steuerangaben")
+    st.write(
+        "Fuer die Beispielrechnung unten. Ohne Angabe wird ledig, ohne Kirchensteuer und "
+        "mit vollem Sparerpauschbetrag gerechnet."
+    )
+    stored_tax = get_tax_settings()
+    col_kirche, col_veranlagung = st.columns(2)
+    with col_kirche:
+        church_label = st.selectbox(
+            "Kirchensteuer",
+            options=list(CHURCH_TAX_RATES),
+            index=next(
+                (i for i, v in enumerate(CHURCH_TAX_RATES.values())
+                 if v == stored_tax.church_tax_rate),
+                0,
+            ),
+        )
+    with col_veranlagung:
+        joint = st.checkbox("Zusammenveranlagung", value=stored_tax.joint_assessment)
+    allowance_used = st.number_input(
+        "Sparerpauschbetrag bereits verbraucht (z. B. bei anderen Banken)",
+        min_value=0.0, value=stored_tax.allowance_used, step=100.0,
+    )
+    tax_settings = TaxSettings(
+        church_tax_rate=CHURCH_TAX_RATES[church_label],
+        joint_assessment=joint,
+        allowance_used=allowance_used,
+    )
+    if tax_settings != stored_tax:
+        store.set(
+            TAX_SETTINGS_KEY,
+            {
+                "church_tax_rate": tax_settings.church_tax_rate,
+                "joint_assessment": tax_settings.joint_assessment,
+                "allowance_used": tax_settings.allowance_used,
+            },
+        )
+
+    kpi_steuer = st.columns(3)
+    kpi_steuer[0].metric("Effektiver Steuersatz", f"{tax_settings.effective_rate * 100:.3f} %")
+    kpi_steuer[1].metric("Sparerpauschbetrag", german_number(tax_settings.allowance, 0))
+    kpi_steuer[2].metric("davon noch frei", german_number(tax_settings.allowance_left, 0))
+
+    st.subheader("Beispielrechnung")
+    col_gewinn, col_fonds = st.columns(2)
+    with col_gewinn:
+        beispiel_gewinn = st.number_input(
+            "Angenommener realisierter Gewinn", min_value=0.0, value=1_000.0, step=100.0
+        )
+    with col_fonds:
+        ist_fonds = st.checkbox(
+            "Aktienfonds/-ETF (30 % Teilfreistellung)",
+            value=False,
+            help="Gilt fuer Fonds mit dauerhaft mehr als 50 % Aktienanteil, nicht fuer "
+                 "Einzelaktien.",
+        )
+    ergebnis = tax_on_gain(
+        beispiel_gewinn,
+        TaxSettings(
+            church_tax_rate=tax_settings.church_tax_rate,
+            joint_assessment=tax_settings.joint_assessment,
+            allowance_used=tax_settings.allowance_used,
+            equity_fund=ist_fonds,
+        ),
+    )
+    kpi_beispiel = st.columns(3)
+    kpi_beispiel[0].metric("Steuer", german_number(ergebnis.tax, 2))
+    kpi_beispiel[1].metric("Netto verbleibend", german_number(ergebnis.net_gain, 2))
+    kpi_beispiel[2].metric(
+        "Effektive Belastung",
+        f"{ergebnis.effective_burden:.2f} %" if ergebnis.effective_burden is not None else "-",
+    )
+    st.caption(
+        "Reine Beispielrechnung, keine Steuerberatung. Verlustverrechnung mit anderen "
+        "Geschaeften und die uebrige steuerliche Situation sind nicht abgebildet."
+    )
 
 with tab_cache:
     st.subheader("Cache-Lebensdauer")

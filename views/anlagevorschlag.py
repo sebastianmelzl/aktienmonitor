@@ -22,6 +22,7 @@ from aktienmonitor.ui.common import (
     get_watchlist,
     page_header,
 )
+from aktienmonitor.ui.costs import render_allocation_costs
 
 page_header("Aufteilung", "Wie sich ein Betrag nach festgelegten Regeln verteilt")
 
@@ -184,6 +185,15 @@ with col_rules:
     for rule in constraints.describe():
         st.markdown(f"- {rule}")
     st.caption(f"Verteilung: {method}")
+
+# --- Handelskosten -------------------------------------------------------------
+st.subheader("Kaufkosten (Trade Republic)")
+st.caption(
+    "Je Position faellt eine Order an - unabhaengig von der Groesse. Kleine Positionen "
+    "sind dadurch relativ teuer und brauchen eine hoehere Kursbewegung, bis sich der "
+    "Kauf ueberhaupt ausgezahlt hat."
+)
+render_allocation_costs(result.items)
 
 # --- Benchmark-Vergleich -------------------------------------------------------
 app_config = get_config()
