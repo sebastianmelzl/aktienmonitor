@@ -54,7 +54,7 @@ der Grund, warum das gesamte Rechenwerk ohne Netz und ohne Oberfläche testbar
 ist — diese Trennung bitte nicht aufweichen.
 
 ```
-app.py            Navigation (st.navigation) + Zugangsschutz
+app.py            Navigation (st.navigation, nach Sektionen gruppiert) + Zugangsschutz
 views/            Seiten — nur Darstellung, kein Rechenkram
 src/aktienmonitor/
   models.py       MetricValue, MetricSet, NewsItem, SecurityProfile
@@ -296,6 +296,17 @@ Tippfehler in einer Seite.
 
 Testticker heißen bewusst `TEST*`, damit sie nie mit echten Werten zu
 verwechseln sind.
+
+## Oberfläche für Einsteiger
+
+Elf Seiten sind fuer einen Einsteiger auf einen Blick zu viel. `app.py`
+gruppiert sie deshalb in `st.navigation` nach Sektionen (Einstieg, Titel
+pruefen, Neue Ideen, Geld anlegen, Vertiefung, Verwaltung) statt einer
+flachen Liste. Bei einer leeren Watchlist zeigt die Uebersicht zusaetzlich
+eine Schritt-fuer-Schritt-Anleitung, welche Seiten fuer den Einstieg
+tatsaechlich noetig sind (Watchlist, Uebersicht, Detailansicht, Aufteilung,
+Tagebuch) und welche bewusst fuer spaeter sind (Vergleich, Backtest,
+Datenquellen, Einstellungen).
 
 ## Gehosteter Betrieb
 

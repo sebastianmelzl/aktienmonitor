@@ -48,6 +48,22 @@ if not entries:
         "Das Universum ist noch leer. Unter **Watchlist** koennen Titel per Ticker "
         "hinzugefuegt oder als CSV importiert werden."
     )
+    with st.expander("Erste Schritte - so ist die App gedacht", expanded=True):
+        st.markdown(
+            "1. **Watchlist**: ein paar Titel eintragen, die du kennst oder pruefen willst.\n"
+            "2. **Uebersicht** (hier): auf *Alle Werte aktualisieren* klicken, dann Scores "
+            "und Datenstand aller Titel auf einen Blick sehen.\n"
+            "3. **Detailansicht**: bei einem einzelnen Titel nachvollziehen, welche Kennzahl "
+            "wie viele Punkte beigetragen hat.\n"
+            "4. **Kandidaten** / **Vorschlaege**: wenn du noch nicht weisst, welche Titel "
+            "ueberhaupt in Frage kommen.\n"
+            "5. **Aufteilung**: wenn du einen Betrag anlegen willst - zeigt auch gleich die "
+            "Kaufkosten bei Trade Republic.\n"
+            "6. **Tagebuch**: jede Entscheidung mit eigener Begruendung eintragen, um spaeter "
+            "ehrlich nachvollziehen zu koennen, ob sie sich gelohnt hat.\n\n"
+            "Die uebrigen Seiten (**Vergleich**, **Backtest**, **Datenquellen**, "
+            "**Einstellungen**) sind fuer spaeter - nichts davon ist fuer den Einstieg noetig."
+        )
     st.stop()
 
 # --- Auswahl und Aktualisierung ---------------------------------------------

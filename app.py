@@ -18,19 +18,31 @@ st.set_page_config(page_title="Aktienmonitor", page_icon="📊", layout="wide")
 require_access()
 
 navigation = st.navigation(
-    [
-        st.Page("views/uebersicht.py", title="Uebersicht", icon="📊", default=True),
-        st.Page("views/watchlist.py", title="Watchlist", icon="📋"),
-        st.Page("views/detail.py", title="Detailansicht", icon="🔍"),
-        st.Page("views/kandidaten.py", title="Kandidaten", icon="🔔"),
-        st.Page("views/vorschlaege.py", title="Vorschlaege", icon="🧭"),
-        st.Page("views/vergleich.py", title="Vergleich", icon="⚖️"),
-        st.Page("views/anlagevorschlag.py", title="Aufteilung", icon="🧮"),
-        st.Page("views/tagebuch.py", title="Tagebuch", icon="📓"),
-        st.Page("views/backtest.py", title="Backtest", icon="⏮️"),
-        st.Page("views/datenquellen.py", title="Datenquellen", icon="🔌"),
-        st.Page("views/einstellungen.py", title="Einstellungen", icon="⚙️"),
-    ]
+    {
+        "Einstieg": [
+            st.Page("views/uebersicht.py", title="Uebersicht", icon="📊", default=True),
+            st.Page("views/watchlist.py", title="Watchlist", icon="📋"),
+        ],
+        "Titel pruefen": [
+            st.Page("views/detail.py", title="Detailansicht", icon="🔍"),
+            st.Page("views/vergleich.py", title="Vergleich", icon="⚖️"),
+        ],
+        "Neue Ideen": [
+            st.Page("views/kandidaten.py", title="Kandidaten", icon="🔔"),
+            st.Page("views/vorschlaege.py", title="Vorschlaege", icon="🧭"),
+        ],
+        "Geld anlegen": [
+            st.Page("views/anlagevorschlag.py", title="Aufteilung", icon="🧮"),
+            st.Page("views/tagebuch.py", title="Tagebuch", icon="📓"),
+        ],
+        "Vertiefung": [
+            st.Page("views/backtest.py", title="Backtest", icon="⏮️"),
+        ],
+        "Verwaltung": [
+            st.Page("views/datenquellen.py", title="Datenquellen", icon="🔌"),
+            st.Page("views/einstellungen.py", title="Einstellungen", icon="⚙️"),
+        ],
+    }
 )
 logout_button()
 navigation.run()
