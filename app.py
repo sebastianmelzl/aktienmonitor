@@ -32,6 +32,7 @@ navigation = st.navigation(
             st.Page("views/vorschlaege.py", title="Vorschlaege", icon="🧭"),
         ],
         "Geld anlegen": [
+            st.Page("views/investieren.py", title="Investieren", icon="💶"),
             st.Page("views/anlagevorschlag.py", title="Aufteilung", icon="🧮"),
             st.Page("views/tagebuch.py", title="Tagebuch", icon="📓"),
         ],

@@ -11,6 +11,7 @@ from aktienmonitor.scoring.sector import SectorStatistics
 from aktienmonitor.screening.profiles import (
     PROFILES,
     PROFILES_BY_KEY,
+    REGIONS,
     ScreenRequest,
     diagnose_result_count,
     parse_hits,
@@ -27,12 +28,6 @@ HITS_KEY = "_vorschlaege_treffer"
 REQUEST_KEY = "_vorschlaege_anfrage"
 ANALYSED_KEY = "_vorschlaege_analysiert"
 
-REGIONS = {
-    "de": "Deutschland", "at": "Oesterreich", "ch": "Schweiz", "fr": "Frankreich",
-    "nl": "Niederlande", "gb": "Grossbritannien", "us": "USA", "ca": "Kanada",
-    "se": "Schweden", "dk": "Daenemark", "fi": "Finnland", "it": "Italien",
-    "es": "Spanien", "jp": "Japan",
-}
 SECTORS = [
     "Basic Materials", "Communication Services", "Consumer Cyclical",
     "Consumer Defensive", "Energy", "Financial Services", "Healthcare",

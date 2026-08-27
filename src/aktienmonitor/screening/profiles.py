@@ -21,6 +21,15 @@ from enum import StrEnum
 # Obergrenze der Marktabfrage je Lauf (Vorgabe des Anbieters).
 MAX_RESULTS = 250
 
+# Regionscodes des Yahoo-Screeners mit deutscher Anzeigebezeichnung - von
+# mehreren Oberflaechenseiten genutzt, deshalb hier statt in einer View.
+REGIONS: dict[str, str] = {
+    "de": "Deutschland", "at": "Oesterreich", "ch": "Schweiz", "fr": "Frankreich",
+    "nl": "Niederlande", "gb": "Grossbritannien", "us": "USA", "ca": "Kanada",
+    "se": "Schweden", "dk": "Daenemark", "fi": "Finnland", "it": "Italien",
+    "es": "Spanien", "jp": "Japan",
+}
+
 
 class Comparison(StrEnum):
     GREATER = "gt"

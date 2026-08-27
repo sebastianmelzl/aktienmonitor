@@ -168,6 +168,22 @@ Zwei Dinge, die beim Aendern erhalten bleiben muessen:
 Bei Vorschlaegen ist die Sektor-Vergleichsgruppe **die Trefferliste selbst**,
 nicht die Watchlist - sie stammt aus derselben Suche.
 
+**`views/investieren.py`** ist derselbe zweistufige Ablauf, aber als ein
+einzelner Knopf statt eines mehrstufigen Assistenten: Betrag eingeben, Profil
+waehlen, fertig. Zwei Unterschiede zu Vorschlaegen/Aufteilung:
+
+- **Auswahl nach fundamentalem Teilscore, nicht nach Gesamtscore.** Sortiert
+  wird nach `scored.categories["fundamental"].score` - das ist die
+  ausdrueckliche Anforderung an diese Seite (Fundamentalanalyse als
+  Auswahlkriterium), nicht nur als Anzeige danach.
+- **Feste Anzahl von fuenf Titeln**, gleichgewichtet ueber `scoring/allocation.py`
+  verteilt (`AllocationConstraints(max_positions=5)`). Reicht die Marktsuche
+  keine fuenf Titel mit berechenbarem Fundamental-Score her, wird das benannt,
+  nicht mit weniger aussagekraeftigen Titeln aufgefuellt.
+
+Die REGIONS-Zuordnung fuer den Regionsfilter liegt in `screening/profiles.py`,
+weil sie von mehreren Seiten (Vorschlaege, Investieren) genutzt wird.
+
 ## Aufteilungsrechner
 
 `scoring/allocation.py` verteilt einen Betrag nach vorgegebenen Regeln. Zwei
